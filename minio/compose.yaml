@@ -20,14 +20,14 @@ services:
           memory: 256M
           cpus: '0.25'
     networks:
-      - kinForge-net
+      - galfields-net
       - caddy_network
 
 volumes:
   minio_data:
 
 networks:
-  kinForge-net:
+  galfields-net:
     external: true
   caddy_network:
     external: true

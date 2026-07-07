@@ -36,3 +36,19 @@ Corresponding test-scoped starters (`spring-boot-starter-data-jpa-test`, `spring
 ## Configuration
 
 `src/main/resources/application.properties` currently only sets `spring.application.name=pos`. No datasource, port, or profile configuration exists yet — add it here (or in profile-specific `application-<profile>.properties` files) as the project grows.
+
+## Local infra (Postgres + MinIO)
+
+There is no compose file in this directory for local Postgres/MinIO — use the shared ones instead, so local dev matches the same topology (`gf-db-primary`/`gf-db-replica`, DB name `pos`) that production uses:
+
+```bash
+# Postgres primary/replica, exposed on host ports 5433/5434
+podman-compose -f ../postgrest/compose.yaml -f ../postgrest/compose.dev.yml up -d
+
+# MinIO, exposed on host ports 9000/9001
+podman-compose -f ../../minio/compose.yaml -f ../../minio/compose.dev.yml up -d
+```
+
+Both require the external network `galfields-net` to exist first: `podman network create galfields-net`.
+
+Point `application-dev.properties` at `jdbc:postgresql://localhost:5433/pos` and MinIO endpoint `http://localhost:9000` (credentials default to `postgres`/`bob123` and `minioadmin`/`minioadmin` — see each service's compose file).

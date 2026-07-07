@@ -1,0 +1,83 @@
+name: Deploy — Caddy config reload (zero-downtime)
+
+# Triggered ONLY when Caddyfile changes (routes, TLS, rate limits, security headers).
+# The Caddyfile is a bind mount — git pull updates it on disk, then `caddy reload`
+# loads it into the running process WITHOUT restarting the container.
+#
+# Caddy handles all active connections gracefully during reload (HTTP/2 + QUIC safe).
+# Fallback: force-recreate only if the reload command itself errors out.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'caddy/Caddyfile'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  reload:
+    name: Reload Caddy config
+    runs-on: ubuntu-latest
+    environment: works
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reload Caddyfile (zero-downtime)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            cd /home/bob/projects/galfields
+            git pull origin master
+            cd caddy
+
+            echo "──────────────────────────────────────────────"
+            echo "  Verificando estado de Caddy..."
+            echo "──────────────────────────────────────────────"
+
+            if ! podman exec galfields-caddy caddy version >/dev/null 2>&1; then
+              echo "⚠️  Caddy no responde. Levantando contenedor..."
+              podman-compose up -d --force-recreate caddy
+              until podman exec galfields-caddy caddy version >/dev/null 2>&1; do
+                echo -n "."; sleep 2
+              done
+              echo "✔ Caddy listo"
+              exit 0
+            fi
+
+            echo "✔ Caddy activo — recargando configuración..."
+
+            # `caddy reload` aplica el nuevo Caddyfile al proceso en vuelo.
+            # Las conexiones activas no se interrumpen; TLS no se renegocia.
+            if podman exec galfields-caddy \
+                caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile; then
+              echo "✔ Caddyfile recargado sin downtime"
+            else
+              echo "⚠️  Reload falló — usando force-recreate como fallback..."
+              podman-compose up -d --force-recreate caddy
+
+              RETRIES=15
+              for i in $(seq 1 $RETRIES); do
+                if podman exec galfields-caddy caddy version >/dev/null 2>&1; then
+                  echo "✔ Caddy listo tras recreación (intento ${i})"
+                  break
+                fi
+                [ "$i" -eq "$RETRIES" ] && { echo "✘ Caddy no respondió"; exit 1; }
+                sleep 2; echo -n "."
+              done
+            fi
+
+            echo ""
+            echo "──────────────────────────────────────────────"
+            echo "  Estado final:"
+            echo "──────────────────────────────────────────────"
+            podman ps --filter name=galfields-caddy \
+              --format "table {{.Names}}\t{{.Status}}"

@@ -20,7 +20,7 @@ V4__create_notifications_table.sql
 ALTER TABLE app_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 ```
 
-3. Haz commit y push a `master`. El workflow `deploy-em-db.yml` aplica la migración automáticamente.
+3. Haz commit y push a `master`. El workflow `deploy-postgrest-migrations.yml` aplica la migración automáticamente.
 
 ## Reglas
 
@@ -35,12 +35,12 @@ ALTER TABLE app_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 
 ```bash
 # En el VPS
-cd /home/bob/projects/KindredWorks
-export DB_NAME=campaign_engine DB_USERNAME=postgres DB_PASSWORD=tu_pass
+cd /home/bob/projects/galfields
+export DB_NAME=pos DB_USERNAME=postgres DB_PASSWORD=tu_pass
 
 podman run --rm \
-  --network=kinForge-net \
-  -e FLYWAY_URL="jdbc:postgresql://em-db-primary:5432/${DB_NAME}" \
+  --network=galfields-net \
+  -e FLYWAY_URL="jdbc:postgresql://gf-db-primary:5432/${DB_NAME}" \
   -e FLYWAY_USER="${DB_USERNAME}" \
   -e FLYWAY_PASSWORD="${DB_PASSWORD}" \
   -e FLYWAY_BASELINE_ON_MIGRATE=true \
@@ -66,7 +66,7 @@ Si una migración falla a mitad, el procedimiento es:
 
 ```sql
 -- 1. Conectarse a la BD
-psql -h localhost -p 5433 -U postgres -d campaign_engine
+psql -h localhost -p 5432 -U postgres -d pos
 
 -- 2. Ver migraciones fallidas
 SELECT * FROM flyway_schema_history ORDER BY installed_rank;

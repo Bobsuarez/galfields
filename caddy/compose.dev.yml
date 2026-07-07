@@ -1,11 +1,11 @@
-name: kindredworks-dev
+name: galfields-dev
 
 services:
   caddy:
     build:
       context: .               # El contexto es la raíz de tu proyecto
       dockerfile: Dockerfile.caddy # El nombre de tu Dockerfile
-    container_name: kindredworks-dev-caddy-1
+    container_name: galfields-dev-caddy-1
     restart: unless-stopped
     ports:
       - "8080:80"
@@ -17,13 +17,13 @@ services:
       - caddy_config:/config
     networks:
       - caddy_network
-      - kinForge-net
+      - galfields-net
 
 networks:
   caddy_network:
     name: caddy_network
     driver: bridge
-  kinForge-net:
+  galfields-net:
     external: true
 
 volumes:
