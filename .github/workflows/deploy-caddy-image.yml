@@ -1,0 +1,90 @@
+name: CI/CD — Caddy (rebuild image)
+
+# Triggered ONLY when the Dockerfile.caddy changes (plugins, OWASP CRS version, etc.).
+# For Caddyfile-only changes use deploy-caddy-config.yml (zero-downtime reload).
+#
+# Build pipeline:
+#   1. xcaddy compiles Caddy with caddy-ratelimit + coraza-caddy plugins
+#   2. Fetches OWASP CRS rules and patches out SecRxPreFilter
+#   3. Pushes image to GHCR with sha-XXXXXXX tag
+#   4. VPS pulls the new image and recreates the container
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'caddy/Dockerfile.caddy'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Build & push Caddy image
+    uses: ./.github/workflows/_build-push.yml
+    secrets: inherit
+    with:
+      service: caddy
+      dockerfile: caddy/Dockerfile.caddy
+      context: caddy
+
+  deploy:
+    name: Deploy to Contabo VPS
+    needs: build-push
+    runs-on: ubuntu-latest
+    environment: works
+    steps:
+      - name: Pull new image and recreate Caddy
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_ACTOR: ${{ github.actor }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          command_timeout: 10m
+          envs: GHCR_TOKEN,GHCR_ACTOR
+          script: |
+            set -e
+            IMAGE="${{ needs.build-push.outputs.image }}"
+            TAG="${{ needs.build-push.outputs.sha-tag }}"
+
+            echo "→ Desplegando Caddy ${IMAGE}:${TAG}"
+
+            cd /home/bob/projects/galfields
+            git pull origin master
+
+            echo "$GHCR_TOKEN" | podman login ghcr.io -u "$GHCR_ACTOR" --password-stdin
+            podman pull "${IMAGE}:${TAG}"
+
+            export CADDY_IMAGE="${IMAGE}:${TAG}"
+
+            cd caddy
+            # force-recreate: la imagen cambió (nuevos plugins o reglas OWASP).
+            # El downtime es mínimo (~2s) ya que Caddy termina limpiamente.
+            podman-compose up -d --force-recreate caddy
+
+            # Esperar a que Caddy responda
+            RETRIES=15
+            for i in $(seq 1 $RETRIES); do
+              if podman exec galfields-caddy caddy version >/dev/null 2>&1; then
+                echo "✔ Caddy listo (intento ${i})"
+                break
+              fi
+              [ "$i" -eq "$RETRIES" ] && { echo "✘ Caddy no respondió"; exit 1; }
+              sleep 2; echo -n "."
+            done
+
+            podman logout ghcr.io
+            podman image prune -f
+
+            echo ""
+            echo "──────────────────────────────────────────────"
+            podman ps --filter name=galfields-caddy \
+              --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+            echo "✔ Caddy desplegado: ${TAG}"
