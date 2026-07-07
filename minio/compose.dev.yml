@@ -1,8 +1,0 @@
-# Overlay dev — expone puertos al host para acceso directo
-# Uso: podman-compose -f compose.yaml -f compose.dev.yml up -d
-
-services:
-  minio:
-    ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # Consola web
