@@ -81,4 +81,4 @@ jobs:
             apps/galfield-pos/src-tauri/target/release/bundle/**/*.rpm
             apps/galfield-pos/src-tauri/target/release/bundle/**/*.AppImage
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
