@@ -1,0 +1,31 @@
+name: kindredworks
+
+services:
+  caddy:
+    # Imagen pre-construida en GitHub Actions con xcaddy + coraza + ratelimit + OWASP CRS.
+    # CADDY_IMAGE se inyecta por el workflow de deploy.
+    # Para build local: podman-compose -f compose.yaml -f compose.build.yml up -d
+    image: ${CADDY_IMAGE:-ghcr.io/bobsuarez/kindredworks/caddy:latest}
+    container_name: kindredworks-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - caddy_network
+      - kinForge-net
+
+networks:
+  caddy_network:
+    name: caddy_network
+    driver: bridge
+  kinForge-net:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

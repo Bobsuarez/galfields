@@ -1,0 +1,31 @@
+name: kindredworks-dev
+
+services:
+  caddy:
+    build:
+      context: .               # El contexto es la raíz de tu proyecto
+      dockerfile: Dockerfile.caddy # El nombre de tu Dockerfile
+    container_name: kindredworks-dev-caddy-1
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "8443:443"
+      - "8443:443/udp"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - caddy_network
+      - kinForge-net
+
+networks:
+  caddy_network:
+    name: caddy_network
+    driver: bridge
+  kinForge-net:
+    external: true
+
+volumes:
+  caddy_data:
+  caddy_config:

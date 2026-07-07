@@ -1,0 +1,11 @@
+# Overlay dev — agrega exposición de puertos al host para acceso directo
+# Uso: podman-compose -f compose.yaml -f compose.dev.yml up -d
+
+services:
+  em-db-primary:
+    ports:
+      - "5433:5432"
+
+  em-db-replica:
+    ports:
+      - "5434:5432"

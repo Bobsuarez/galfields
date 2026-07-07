@@ -1,0 +1,71 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# KindredWorks — Desarrollo Local
+# Usar con: podman-compose -f compose.dev.yml up -d (desde la raíz)
+#
+# Agregar al /etc/hosts:
+#   127.0.0.1  web.localhost n8n.localhost leads.localhost
+#   127.0.0.1  leadsprocessor.localhost leadsdelivery.localhost backend.localhost
+#
+# Los certificados con `tls internal` son autofirmados. Ejecutar una vez:
+#   podman exec kindredworks-dev-caddy-1 caddy trust
+# ═══════════════════════════════════════════════════════════════════════════
+
+(seguridad) {
+    header {
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline';"
+        # Nueva directiva para evitar que datos sensibles se guarden en caché
+        Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate"
+        Pragma "no-cache" # Compatibilidad con navegadores antiguos
+        Expires "0"
+    }
+}
+
+# ── Frontend Astro ─────────────────────────────────────────────────────────
+web.localhost {
+    import seguridad
+
+    header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client; frame-src https://accounts.google.com; connect-src 'self' https://accounts.google.com ws://web.localhost:8443; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self';"
+    tls internal
+    reverse_proxy em-web:4321
+}
+
+# ── n8n ───────────────────────────────────────────────────────────────────
+n8n.localhost {
+    import seguridad
+    tls internal
+    reverse_proxy n8n:5678
+}
+
+# ── Backend APIs (acceso directo para dev/debug) ───────────────────────────
+leads.localhost {
+    import seguridad
+    tls internal
+    reverse_proxy em-leads:8080
+}
+
+leadsprocessor.localhost {
+    import seguridad
+    tls internal
+    reverse_proxy em-leads-processor:8080
+}
+
+leadsdelivery.localhost {
+    import seguridad
+    tls internal
+    reverse_proxy em-leads-delivery:8080
+}
+
+# ── HTTP sin TLS (acceso rápido) ───────────────────────────────────────────
+# /api/* va al backend; todo lo demás al frontend.
+# PUBLIC_API_URL en .env.development apunta a http://localhost:8080/api
+:80 {
+    handle /api/* {
+        reverse_proxy em-backend:8080
+    }
+    handle {
+        reverse_proxy em-web:4321
+    }
+}
