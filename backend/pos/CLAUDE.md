@@ -74,11 +74,16 @@ On update, variants are upserted by `sku` against the product's existing variant
 
 `GET /api/products` takes standard Spring `Pageable` params (`page`, `size`, `sort`), defaulting to `sort=createdAt,desc`. **Don't pass the raw client-supplied `Sort` straight to the repository** — `findByActiveTrue(Pageable)` queries the `Product` entity directly, so a sort property that isn't an actual JPA path on `Product` (e.g. `price`, `sku`, `stock` - those live on `ProductVariant`, one level down) blows up with `InvalidDataAccessApiUsageException` (500) instead of a clean error. `ProductController` remaps every requested sort key through the `SORTABLE_PROPERTIES` whitelist (`productId`, `name`, `active`, `createdAt`, `updatedAt`, `categoryName` → `category.name`, `brandName` → `brand.name`) before building the `Pageable`, and rejects anything else with a 400. Add a new sortable column here (not in the repository) if the API needs one.
 
-## Category CRUD endpoint
+## Category / Brand CRUD endpoints
 
-`/api/categories` is a plain CRUD (`CategoryController` → `CategoryService` → `CategoryRepository`) — `POST`/`PUT` take `{ name, description }` (`name` required), `GET` lists all or fetches by id, `DELETE` hard-deletes (categories have no `is_active`/soft-delete column, unlike products). `categories.name` has no `UNIQUE` constraint in the DB, so duplicate names are allowed on purpose (no app-level uniqueness check).
+`/api/categories` and `/api/brands` are plain CRUDs (`*Controller` → `*Service` → `*Repository`), same shape as each other:
 
-Deleting a category still referenced by a product (`products.category_id` FK, no `ON DELETE` clause → default `RESTRICT`) now returns a clean 409 instead of a raw 500: `GlobalExceptionHandler` catches `DataIntegrityViolationException` generically, so this also covers brands or any other future FK-constrained delete, not just categories.
+- `/api/categories`: `POST`/`PUT` take `{ name, description }` (`name` required); `categories` has a `description` column.
+- `/api/brands`: `POST`/`PUT` take `{ name }` only (`name` required) — `brands` has **no** `description` column (see `doc/data_base.sql`), don't add one to `BrandRequest`/`BrandResponse` without a matching migration first.
+
+Both: `GET` lists all or fetches by id, `DELETE` hard-deletes (neither table has an `is_active`/soft-delete column, unlike products). Neither `categories.name` nor `brands.name` has a `UNIQUE` constraint in the DB, so duplicate names are allowed on purpose (no app-level uniqueness check).
+
+Deleting a category/brand still referenced by a product (`products.category_id`/`brand_id` FK, no `ON DELETE` clause → default `RESTRICT`) returns a clean 409 instead of a raw 500: `GlobalExceptionHandler` catches `DataIntegrityViolationException` generically, so this covers any future FK-constrained delete too, not just these two.
 
 ## Image compression utility
 
