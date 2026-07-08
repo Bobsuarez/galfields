@@ -41,6 +41,10 @@ public class Employee {
     @JoinColumn(name = "role_id")
     private EmployeeRole role;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "logo_image")
+    private AttachFile logoImage;
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 

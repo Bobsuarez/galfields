@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "purchase_orders")
@@ -40,7 +42,8 @@ public class PurchaseOrder {
     private LocalDateTime expectedDeliveryDate;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "purchase_order_status_enum")
     private PurchaseOrderStatus status = PurchaseOrderStatus.Pending;
 
     @Column(name = "total_amount", nullable = false, precision = 15, scale = 2)

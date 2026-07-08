@@ -16,6 +16,8 @@ import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "sales_transactions")
@@ -50,7 +52,8 @@ public class SalesTransaction {
     private BigDecimal taxAmount = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_status", nullable = false, length = 20)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "payment_status", nullable = false, columnDefinition = "payment_status_enum")
     private PaymentStatus paymentStatus = PaymentStatus.Pending;
 
     @ManyToOne(fetch = FetchType.LAZY)
