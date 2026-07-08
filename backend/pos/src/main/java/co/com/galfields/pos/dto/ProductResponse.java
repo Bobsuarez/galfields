@@ -1,7 +1,7 @@
 package co.com.galfields.pos.dto;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ProductResponse(
         Long productId,
@@ -11,14 +11,9 @@ public record ProductResponse(
         String categoryName,
         Long brandId,
         String brandName,
-        Long variantId,
-        String sku,
-        String barcode,
-        BigDecimal price,
-        BigDecimal costPrice,
-        Integer stock,
         String imageUrl,
         boolean active,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt) {
+        LocalDateTime updatedAt,
+        List<ProductVariantResponse> variants) {
 }
