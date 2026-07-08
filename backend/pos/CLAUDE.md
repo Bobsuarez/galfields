@@ -74,6 +74,12 @@ On update, variants are upserted by `sku` against the product's existing variant
 
 `GET /api/products` takes standard Spring `Pageable` params (`page`, `size`, `sort`), defaulting to `sort=createdAt,desc`. **Don't pass the raw client-supplied `Sort` straight to the repository** — `findByActiveTrue(Pageable)` queries the `Product` entity directly, so a sort property that isn't an actual JPA path on `Product` (e.g. `price`, `sku`, `stock` - those live on `ProductVariant`, one level down) blows up with `InvalidDataAccessApiUsageException` (500) instead of a clean error. `ProductController` remaps every requested sort key through the `SORTABLE_PROPERTIES` whitelist (`productId`, `name`, `active`, `createdAt`, `updatedAt`, `categoryName` → `category.name`, `brandName` → `brand.name`) before building the `Pageable`, and rejects anything else with a 400. Add a new sortable column here (not in the repository) if the API needs one.
 
+## Category CRUD endpoint
+
+`/api/categories` is a plain CRUD (`CategoryController` → `CategoryService` → `CategoryRepository`) — `POST`/`PUT` take `{ name, description }` (`name` required), `GET` lists all or fetches by id, `DELETE` hard-deletes (categories have no `is_active`/soft-delete column, unlike products). `categories.name` has no `UNIQUE` constraint in the DB, so duplicate names are allowed on purpose (no app-level uniqueness check).
+
+Deleting a category still referenced by a product (`products.category_id` FK, no `ON DELETE` clause → default `RESTRICT`) now returns a clean 409 instead of a raw 500: `GlobalExceptionHandler` catches `DataIntegrityViolationException` generically, so this also covers brands or any other future FK-constrained delete, not just categories.
+
 ## Image compression utility
 
 `co.com.galfields.pos.util.ImageCompressor` (Thumbnailator-backed) downscales images to a 1600px max dimension (never upscales) and re-encodes JPEGs at ~82% quality before upload; PNGs and unrecognized content types pass through mostly as-is. It's a plain `@Component` with a single `compress(MultipartFile): byte[]` method, meant to be called by any service before handing bytes to `MinioService` — not specific to products. `ProductService` calls it for both product and variant images.
