@@ -1,8 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,30 +11,26 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as ImagePicker from 'expo-image-picker';
 import { AppButton } from '@/components/ui/app-button';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { SelectField } from '@/components/ui/select-field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BarcodeScannerModal } from '@/components/products/barcode-scanner-modal';
-import { removeBackground } from '@/services/background-removal';
+import { ImagePickerField } from '@/components/products/image-picker-field';
+import { VariantFormCard, type VariantFormErrors } from '@/components/products/variant-form-card';
+import { useImagePicker } from '@/hooks/use-image-picker';
 import { useProducts } from '@/contexts/products-context';
+import { brandsApi, categoriesApi, type CatalogBrand, type CatalogCategory } from '@/services/catalog-api';
 import { Brand } from '@/constants/theme';
-import {
-  PRODUCT_CATEGORIES,
-  PRODUCT_UNITS,
-  type ProductCategory,
-  type ProductFormData,
-  type ProductUnit,
-} from '@/types/product';
+import { toTitleCase } from '@/utils/text-case';
+import { buildVariantSku } from '@/utils/sku';
+import { createEmptyVariantDraft, type ProductInput, type ProductVariantDraft } from '@/types/product';
 
 interface FormErrors {
   name?: string;
   category?: string;
-  price?: string;
-  stock?: string;
-  unit?: string;
-  barcode?: string;
+  brand?: string;
+  variants: VariantFormErrors[];
 }
 
 export default function AddProductScreen() {
@@ -44,93 +38,128 @@ export default function AddProductScreen() {
   const insets = useSafeAreaInsets();
 
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('');
-  const [price, setPrice] = useState('');
-  const [stock, setStock] = useState('');
-  const [unit, setUnit] = useState('');
-  const [barcode, setBarcode] = useState('');
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [imageProcessing, setImageProcessing] = useState(false);
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [errors, setErrors] = useState<FormErrors>({});
+  const [description, setDescription] = useState('');
+  const [categoryName, setCategoryName] = useState('');
+  const [brandName, setBrandName] = useState('');
+  const [imageUri, setImageUri] = useState<string | undefined>(undefined);
+  const [variants, setVariants] = useState<ProductVariantDraft[]>([createEmptyVariantDraft()]);
+  const [scanningIndex, setScanningIndex] = useState<number | null>(null);
+  const [errors, setErrors] = useState<FormErrors>({ variants: [{}] });
   const [saving, setSaving] = useState(false);
 
-  const clearError = (field: keyof FormErrors) =>
+  const [categories, setCategories] = useState<CatalogCategory[]>([]);
+  const [brands, setBrands] = useState<CatalogBrand[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([categoriesApi.list(), brandsApi.list()])
+      .then(([categoryList, brandList]) => {
+        setCategories(categoryList);
+        setBrands(brandList);
+      })
+      .catch(err => {
+        setCatalogError(
+          err instanceof Error ? err.message : 'No se pudieron cargar categorías y marcas.',
+        );
+      });
+  }, []);
+
+  const mainImagePicker = useImagePicker(uri => setImageUri(uri ?? undefined));
+
+  const clearError = (field: 'name' | 'category' | 'brand') =>
     setErrors(prev => ({ ...prev, [field]: undefined }));
 
+  const updateVariant = (index: number, next: ProductVariantDraft) => {
+    setVariants(prev => prev.map((v, i) => (i === index ? next : v)));
+    setErrors(prev => ({
+      ...prev,
+      variants: prev.variants.map((e, i) => (i === index ? {} : e)),
+    }));
+  };
+
+  const addVariant = () => {
+    setVariants(prev => [...prev, createEmptyVariantDraft()]);
+    setErrors(prev => ({ ...prev, variants: [...prev.variants, {}] }));
+  };
+
+  const removeVariant = (index: number) => {
+    setVariants(prev => prev.filter((_, i) => i !== index));
+    setErrors(prev => ({ ...prev, variants: prev.variants.filter((_, i) => i !== index) }));
+  };
+
+  const isVariantComplete = (variant: ProductVariantDraft): boolean =>
+    variant.barcode.trim().length > 0 &&
+    variant.price.trim().length > 0 &&
+    Number(variant.price) > 0 &&
+    variant.costPrice.trim().length > 0 &&
+    Number(variant.costPrice) >= 0 &&
+    (!variant.initialStock.trim() || Number(variant.initialStock) >= 0) &&
+    variant.attributes.some(a => a.name.trim() && a.value.trim());
+
+  const canSave =
+    name.trim().length > 0 && !!categoryName && !!brandName && variants.every(isVariantComplete);
+
   const validate = (): boolean => {
-    const next: FormErrors = {};
-    if (!name.trim()) next.name = 'El nombre es requerido';
-    if (!category) next.category = 'Selecciona una categoría';
-    if (!price.trim() || isNaN(Number(price)) || Number(price) <= 0)
-      next.price = 'Ingresa un precio válido';
-    if (!stock.trim() || isNaN(Number(stock)) || Number(stock) < 0)
-      next.stock = 'Ingresa un stock válido';
-    if (!unit) next.unit = 'Selecciona una unidad';
-    if (!barcode.trim()) next.barcode = 'El código de barras es requerido';
+    const variantErrors: VariantFormErrors[] = variants.map(variant => {
+      const fieldErrors: VariantFormErrors = {};
+      if (!variant.barcode.trim()) fieldErrors.barcode = 'El código de barras es requerido';
+      if (!variant.price.trim() || Number(variant.price) <= 0)
+        fieldErrors.price = 'Ingresa un precio válido';
+      if (!variant.costPrice.trim() || Number(variant.costPrice) < 0)
+        fieldErrors.costPrice = 'Ingresa un costo válido';
+      if (variant.initialStock.trim() && Number(variant.initialStock) < 0)
+        fieldErrors.initialStock = 'Ingresa un stock válido';
+      if (!variant.attributes.some(a => a.name.trim() && a.value.trim()))
+        fieldErrors.attributes = 'Agrega al menos un atributo (ej. tamaño, color)';
+      return fieldErrors;
+    });
+
+    const next: FormErrors = {
+      variants: variantErrors,
+      name: name.trim() ? undefined : 'El nombre es requerido',
+      category: categoryName ? undefined : 'Selecciona una categoría',
+      brand: brandName ? undefined : 'Selecciona una marca',
+    };
+
     setErrors(next);
-    return Object.keys(next).length === 0;
-  };
-
-  const handlePickImage = async (source: 'camera' | 'gallery') => {
-    const result =
-      source === 'camera'
-        ? await ImagePicker.launchCameraAsync({
-            mediaTypes: ['images'],
-            quality: 0.85,
-            allowsEditing: false,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            quality: 0.85,
-            allowsEditing: false,
-          });
-
-    if (result.canceled) return;
-
-    const uri = result.assets[0].uri;
-    setImageProcessing(true);
-    setImageUri(null);
-    try {
-      const processedUri = await removeBackground(uri);
-      setImageUri(processedUri);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error desconocido';
-      Alert.alert(
-        'No se pudo remover el fondo',
-        `${msg}\n\nSe usará la imagen original.`,
-        [{ text: 'OK' }],
-      );
-      // Fallback: keep the original photo
-      setImageUri(uri);
-    } finally {
-      setImageProcessing(false);
-    }
-  };
-
-  const showImageOptions = () => {
-    Alert.alert('Imagen del producto', 'Elige una opción', [
-      { text: 'Tomar foto', onPress: () => handlePickImage('camera') },
-      { text: 'Seleccionar de galería', onPress: () => handlePickImage('gallery') },
-      ...(imageUri ? [{ text: 'Eliminar imagen', style: 'destructive' as const, onPress: () => setImageUri(null) }] : []),
-      { text: 'Cancelar', style: 'cancel' },
-    ]);
+    const hasVariantErrors = variantErrors.some(e => Object.keys(e).length > 0);
+    return !next.name && !next.category && !next.brand && !hasVariantErrors;
   };
 
   const handleSave = async () => {
     if (!validate()) return;
+
+    const category = categories.find(c => c.name === categoryName);
+    const brand = brands.find(b => b.name === brandName);
+    if (!category || !brand) {
+      Alert.alert('Error', 'Selecciona una categoría y marca válidas.', [{ text: 'OK' }]);
+      return;
+    }
+
     setSaving(true);
     try {
-      const data: ProductFormData = {
+      const payload: ProductInput = {
         name: name.trim(),
-        category: category as ProductCategory,
-        price: Number(price),
-        stock: Number(stock),
-        unit: unit as ProductUnit,
-        barcode: barcode.trim(),
-        imageUri: imageUri ?? undefined,
+        description: description.trim(),
+        categoryId: category.id,
+        brandId: brand.id,
+        imageUri,
+        variants: variants.map(v => {
+          const barcode = v.barcode.trim();
+          const filteredAttributes = v.attributes.filter(a => a.name.trim() && a.value.trim());
+          return {
+            sku: buildVariantSku(name.trim(), filteredAttributes[0]?.value ?? '', barcode),
+            barcode,
+            price: Number(v.price),
+            costPrice: Number(v.costPrice),
+            initialStock: v.initialStock.trim() ? Number(v.initialStock) : 0,
+            attributes: filteredAttributes,
+            imageUri: v.imageUri,
+          };
+        }),
       };
-      const product = await addProduct(data);
+
+      const product = await addProduct(payload);
       router.replace({
         pathname: '/products/success',
         params: {
@@ -161,6 +190,12 @@ export default function AddProductScreen() {
         <View style={styles.headerSpacer} />
       </View>
 
+      {catalogError ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{catalogError}</Text>
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -171,124 +206,90 @@ export default function AddProductScreen() {
 
         <TextInputField
           label="Nombre del producto"
-          placeholder="Ej. Gaseosa 600ml"
+          placeholder="Ej. Camiseta Básica"
           value={name}
-          onChangeText={t => { setName(t); clearError('name'); }}
+          onChangeText={t => { setName(toTitleCase(t)); clearError('name'); }}
           error={errors.name}
+          returnKeyType="next"
+        />
+
+        <TextInputField
+          label="Descripción"
+          placeholder="Ej. Camiseta de algodón"
+          value={description}
+          onChangeText={setDescription}
+          multiline
           returnKeyType="next"
         />
 
         <SelectField
           label="Categoría"
-          value={category}
-          options={PRODUCT_CATEGORIES}
+          value={categoryName}
+          options={categories.map(c => c.name)}
           placeholder="Selecciona una categoría"
-          onSelect={v => { setCategory(v); clearError('category'); }}
+          onSelect={v => { setCategoryName(v); clearError('category'); }}
           error={errors.category}
         />
 
-        <TextInputField
-          label="Precio de venta"
-          placeholder="0"
-          value={price}
-          onChangeText={t => { setPrice(t.replace(/[^0-9]/g, '')); clearError('price'); }}
-          keyboardType="numeric"
-          error={errors.price}
-          returnKeyType="next"
-        />
-
-        <TextInputField
-          label="Stock inicial"
-          placeholder="0"
-          value={stock}
-          onChangeText={t => { setStock(t.replace(/[^0-9]/g, '')); clearError('stock'); }}
-          keyboardType="numeric"
-          error={errors.stock}
-          returnKeyType="done"
-        />
-
         <SelectField
-          label="Unidad de medida"
-          value={unit}
-          options={PRODUCT_UNITS}
-          placeholder="Selecciona unidad"
-          onSelect={v => { setUnit(v); clearError('unit'); }}
-          error={errors.unit}
+          label="Marca"
+          value={brandName}
+          options={brands.map(b => b.name)}
+          placeholder="Selecciona una marca"
+          onSelect={v => { setBrandName(v); clearError('brand'); }}
+          error={errors.brand}
         />
 
-        {/* ── Barcode ── */}
-        <Text style={[styles.sectionTitle, styles.sectionGap]}>Código de barras</Text>
-
-        <View style={styles.barcodeRow}>
-          <View style={styles.barcodeInputWrap}>
-            <TextInputField
-              placeholder="Ingresa o escanea el código"
-              value={barcode}
-              onChangeText={t => { setBarcode(t); clearError('barcode'); }}
-              keyboardType="number-pad"
-              returnKeyType="done"
-              error={errors.barcode}
-            />
-          </View>
-          <Pressable
-            onPress={() => setScannerOpen(true)}
-            style={({ pressed }) => [styles.scanBtn, pressed && styles.scanBtnPressed]}
-            accessibilityLabel="Escanear código de barras"
-          >
-            <IconSymbol name="barcode.viewfinder" size={26} color="#fff" />
-          </Pressable>
-        </View>
-
-        {/* ── Image ── */}
+        {/* ── Main image ── */}
         <Text style={[styles.sectionTitle, styles.sectionGap]}>
           Imagen del producto (opcional)
         </Text>
+        <ImagePickerField
+          imageUri={imageUri}
+          processing={mainImagePicker.processing}
+          onPick={mainImagePicker.pick}
+          onRemove={mainImagePicker.clear}
+        />
 
-        <Pressable onPress={showImageOptions} style={styles.imagePicker} disabled={imageProcessing}>
-          {imageProcessing ? (
-            /* Processing state */
-            <View style={styles.imageProcessingContent}>
-              <ActivityIndicator size="large" color={Brand.orange} />
-              <Text style={styles.imageProcessingText}>Removiendo fondo...</Text>
-            </View>
-          ) : imageUri ? (
-            /* Image selected */
-            <View style={styles.imagePreviewContent}>
-              {/* White background so the transparent PNG looks clean */}
-              <View style={styles.imageWhiteBg}>
-                <Image
-                  source={{ uri: imageUri }}
-                  style={styles.imagePreview}
-                  resizeMode="contain"
-                />
-              </View>
-              <View style={styles.imageEditRow}>
-                <IconSymbol name="camera.fill" size={16} color={Brand.orange} />
-                <Text style={styles.imageEditText}>Cambiar imagen</Text>
-              </View>
-            </View>
-          ) : (
-            /* Empty state */
-            <>
-              <IconSymbol name="camera.fill" size={32} color="#B0A090" />
-              <Text style={styles.imagePickerText}>Tomar foto o seleccionar imagen</Text>
-              <Text style={styles.imagePickerSub}>
-                El fondo se removerá automáticamente ✨
-              </Text>
-            </>
-          )}
+        {/* ── Variants ── */}
+        <Text style={[styles.sectionTitle, styles.sectionGap]}>Variantes</Text>
+        {variants.map((variant, index) => (
+          <VariantFormCard
+            key={index}
+            index={index}
+            productName={name}
+            value={variant}
+            errors={errors.variants[index]}
+            canRemove={variants.length > 1}
+            onChange={next => updateVariant(index, next)}
+            onRemove={() => removeVariant(index)}
+            onScanBarcode={() => setScanningIndex(index)}
+          />
+        ))}
+
+        <Pressable onPress={addVariant} style={styles.addVariantBtn}>
+          <IconSymbol name="plus" size={18} color={Brand.orange} />
+          <Text style={styles.addVariantText}>Agregar variante</Text>
         </Pressable>
 
         <View style={styles.saveBtn}>
-          <AppButton label="Guardar producto" onPress={handleSave} loading={saving} />
+          <AppButton
+            label="Guardar producto"
+            onPress={handleSave}
+            loading={saving}
+            disabled={!canSave}
+          />
         </View>
       </ScrollView>
 
-      {/* Barcode scanner modal */}
+      {/* Barcode scanner modal, shared across variants */}
       <BarcodeScannerModal
-        visible={scannerOpen}
-        onScan={code => { setBarcode(code); clearError('barcode'); }}
-        onClose={() => setScannerOpen(false)}
+        visible={scanningIndex !== null}
+        onScan={code => {
+          if (scanningIndex === null) return;
+          updateVariant(scanningIndex, { ...variants[scanningIndex], barcode: code });
+        }}
+        onClose={() => setScanningIndex(null)}
       />
     </KeyboardAvoidingView>
   );
@@ -312,6 +313,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSpacer: { width: 24 },
+  errorBanner: {
+    backgroundColor: `${Brand.danger}14`,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  errorBannerText: { color: Brand.danger, fontSize: 13 },
   content: { padding: 20, paddingBottom: 48 },
   sectionTitle: {
     fontSize: 13,
@@ -323,63 +330,19 @@ const styles = StyleSheet.create({
   },
   sectionGap: { marginTop: 6 },
 
-  // Barcode
-  barcodeRow: {
+  addVariantBtn: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 4,
-  },
-  barcodeInputWrap: { flex: 1 },
-  scanBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: Brand.orange,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  scanBtnPressed: { opacity: 0.75 },
-
-  // Image picker
-  imagePicker: {
+    gap: 8,
+    paddingVertical: 14,
     borderWidth: 1.5,
-    borderColor: '#E8DDD0',
+    borderColor: Brand.orange,
     borderStyle: 'dashed',
     borderRadius: 12,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-    gap: 8,
     marginBottom: 8,
-    minHeight: 140,
   },
-  imagePickerText: { fontSize: 14, color: '#8A7060' },
-  imagePickerSub: { fontSize: 12, color: Brand.orange, fontWeight: '500' },
-
-  // Processing state
-  imageProcessingContent: { alignItems: 'center', gap: 12 },
-  imageProcessingText: { fontSize: 14, color: '#8A7060' },
-
-  // Preview state
-  imagePreviewContent: { width: '100%', alignItems: 'center', gap: 10 },
-  imageWhiteBg: {
-    width: '100%',
-    height: 160,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  imagePreview: { width: '90%', height: 150 },
-  imageEditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  imageEditText: { fontSize: 13, color: Brand.orange, fontWeight: '500' },
+  addVariantText: { fontSize: 14, fontWeight: '600', color: Brand.orange },
 
   saveBtn: { marginTop: 24 },
 });

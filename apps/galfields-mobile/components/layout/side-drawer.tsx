@@ -27,7 +27,7 @@ const DRAWER_ITEMS: DrawerItem[] = [
   { label: 'Inventario', icon: 'tray.fill' },
   { label: 'Carrito', icon: 'cart.fill' },
   { label: 'Historial', icon: 'clock.fill' },
-  { label: 'Configuración', icon: 'gearshape.fill' },
+  { label: 'Configuración', icon: 'gearshape.fill', href: '/settings' },
 ];
 
 const DRAWER_WIDTH = 280;

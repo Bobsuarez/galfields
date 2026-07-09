@@ -44,7 +44,7 @@ const MENU_ITEMS = [
     icon: 'gearshape.fill',
     label: 'Configuración',
     subtitle: 'Ajustes de la\naplicación',
-    href: null,
+    href: '/settings' as const,
   },
 ] as const;
 

@@ -1,6 +1,23 @@
-export interface RemoteCategory {
-  categoryId: number;
+import * as FileSystem from 'expo-file-system/legacy';
+import { apiBaseUrl } from './api-base-url';
+import { parseApiErrorMessage } from './api-error';
+import type { ProductInput } from '@/types/product';
+
+export interface RemoteVariantAttribute {
   name: string;
+  value: string;
+}
+
+export interface RemoteVariant {
+  variantId: number;
+  sku: string;
+  barcode: string;
+  price: number;
+  costPrice: number;
+  stock: number;
+  imageUrl: string | null;
+  active: boolean;
+  attributes: RemoteVariantAttribute[];
 }
 
 export interface RemoteProduct {
@@ -11,39 +28,40 @@ export interface RemoteProduct {
   categoryName: string | null;
   brandId: number | null;
   brandName: string | null;
-  variantId: number;
-  sku: string;
-  barcode: string;
-  price: number;
-  costPrice: number;
-  stock: number;
   imageUrl: string | null;
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  variants: RemoteVariant[];
 }
 
-export interface CreateProductPayload {
-  name: string;
-  categoryId: number;
-  price: number;
-  barcode: string;
-  initialStock: number;
-  imageUri?: string;
+export interface ProductsPage {
+  content: RemoteProduct[];
+  number: number;
+  totalPages: number;
+  totalElements: number;
 }
 
-function apiBaseUrl(): string {
-  const url = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (!url) throw new Error('EXPO_PUBLIC_API_BASE_URL no está configurada.');
-  return url;
-}
+/** GET /api/products is paginated (default size 20) — sorted by name so the
+ * list reads predictably; see ProductController's SORTABLE_PROPERTIES for
+ * the other keys it accepts. */
+export async function fetchProducts(page = 0, size = 20): Promise<ProductsPage> {
+  const params = new URLSearchParams({ page: String(page), size: String(size), sort: 'name,asc' });
+  const url = `${apiBaseUrl()}/api/products?${params.toString()}`;
 
-export async function fetchCategories(): Promise<RemoteCategory[]> {
-  const response = await fetch(`${apiBaseUrl()}/api/categories`);
+  const response = await fetch(url);
+
   if (!response.ok) {
-    throw new Error(`No se pudieron cargar las categorías (${response.status})`);
+    const text = await response.text().catch(() => '');
+    console.error(`[products-api] GET /api/products -> ${response.status}`, text);
+    throw new Error(parseApiErrorMessage(response.status, text));
   }
-  return response.json();
+
+  const result: ProductsPage = await response.json();
+  console.log(
+    `[products-api] GET /api/products -> ${response.status} (page ${result.number + 1}/${result.totalPages}, ${result.content.length} items)`,
+  );
+  return result;
 }
 
 function guessImageMimeType(uri: string): string {
@@ -54,36 +72,60 @@ function guessImageMimeType(uri: string): string {
 }
 
 /**
- * The mobile form only collects one price and no SKU, so the sale price
- * doubles as costPrice and the barcode doubles as sku — both are already
- * required+unique on the backend and this keeps the form from growing
- * fields the POS doesn't use yet.
+ * React Native's `Blob` polyfill isn't reliable for in-memory JSON parts
+ * (the multipart body it produces can arrive empty/malformed on-device even
+ * though the exact same `Blob`+`FormData` code works fine under a
+ * spec-compliant fetch implementation) — write the JSON to a temp file
+ * instead and attach it the same proven way images already are, as a
+ * `{ uri, name, type }` file part.
  */
-export async function createProduct(payload: CreateProductPayload): Promise<RemoteProduct> {
-  const { imageUri, barcode, price, ...rest } = payload;
+async function jsonPart(fieldName: string, value: unknown): Promise<{ uri: string; name: string; type: string }> {
+  const path = `${FileSystem.cacheDirectory}${fieldName}_${Date.now()}.json`;
+  await FileSystem.writeAsStringAsync(path, JSON.stringify(value));
+  return { uri: path, name: `${fieldName}.json`, type: 'application/json' };
+}
 
-  const productJson = {
-    ...rest,
-    barcode,
-    price,
-    sku: barcode,
-    costPrice: price,
-  };
+function appendImagePart(formData: FormData, fieldName: string, uri: string): void {
+  const mimeType = guessImageMimeType(uri);
+  formData.append(fieldName, {
+    uri,
+    name: `${fieldName}.${mimeType === 'image/png' ? 'png' : 'jpg'}`,
+    type: mimeType,
+  } as unknown as Blob);
+}
+
+/**
+ * A product and its variants are created in a single multipart call: a
+ * "product" JSON part (product-level fields only), an optional "image" part
+ * for the product's own photo, a "variants" JSON array, and one file part per
+ * variant image named "variantImage_<index>" — <index> is the zero-based
+ * position of that variant in the "variants" array (see ProductController).
+ */
+export async function createProduct(payload: ProductInput): Promise<RemoteProduct> {
+  const { imageUri, variants, ...productFields } = payload;
 
   const formData = new FormData();
-  formData.append(
-    'product',
-    new Blob([JSON.stringify(productJson)], { type: 'application/json' }) as unknown as Blob,
-  );
+  formData.append('product', (await jsonPart('product', productFields)) as unknown as Blob);
 
   if (imageUri) {
-    const mimeType = guessImageMimeType(imageUri);
-    formData.append('image', {
-      uri: imageUri,
-      name: `product.${mimeType === 'image/png' ? 'png' : 'jpg'}`,
-      type: mimeType,
-    } as unknown as Blob);
+    appendImagePart(formData, 'image', imageUri);
   }
+
+  const variantsJson = variants.map(({ imageUri: _variantImage, ...variantFields }) => variantFields);
+  formData.append('variants', (await jsonPart('variants', variantsJson)) as unknown as Blob);
+
+  variants.forEach((variant, index) => {
+    if (variant.imageUri) {
+      appendImagePart(formData, `variantImage_${index}`, variant.imageUri);
+    }
+  });
+
+  console.log('[products-api] POST /api/products', {
+    product: productFields,
+    variants: variantsJson,
+    hasMainImage: !!imageUri,
+    variantImages: variants.map(v => !!v.imageUri),
+  });
 
   const response = await fetch(`${apiBaseUrl()}/api/products`, {
     method: 'POST',
@@ -91,9 +133,12 @@ export async function createProduct(payload: CreateProductPayload): Promise<Remo
   });
 
   if (!response.ok) {
-    const text = await response.text().catch(() => response.status.toString());
-    throw new Error(`Error ${response.status} al crear el producto: ${text}`);
+    const text = await response.text().catch(() => '');
+    console.error(`[products-api] POST /api/products -> ${response.status}`, text);
+    throw new Error(parseApiErrorMessage(response.status, text));
   }
 
-  return response.json();
+  const result: RemoteProduct = await response.json();
+  console.log('[products-api] created product', result.productId, `variants: ${result.variants.length}`);
+  return result;
 }
