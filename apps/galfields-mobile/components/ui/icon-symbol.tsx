@@ -46,6 +46,12 @@ const MAPPING = {
   'camera.fill': 'camera-alt',
   // Success
   'checkmark.circle.fill': 'check-circle',
+  // Catalog (categories / brands / locations)
+  'pencil': 'edit',
+  'trash.fill': 'delete',
+  'tag.fill': 'sell',
+  'building.2.fill': 'store',
+  'mappin.and.ellipse': 'location-on',
 } as IconMapping;
 
 /**

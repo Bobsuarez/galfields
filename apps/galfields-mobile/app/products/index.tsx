@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProductListItem } from '@/components/products/product-list-item';
@@ -9,11 +9,12 @@ import { Brand } from '@/constants/theme';
 import type { Product } from '@/types/product';
 
 export default function ProductsScreen() {
-  const { products, searchProducts } = useProducts();
+  const { products, loading, loadingMore, error, refresh, loadMore, searchProducts } = useProducts();
   const [query, setQuery] = useState('');
   const insets = useSafeAreaInsets();
 
-  const displayed = query.trim() ? searchProducts(query) : products;
+  const isSearching = query.trim().length > 0;
+  const displayed = isSearching ? searchProducts(query) : products;
 
   const handleProductPress = (_product: Product) => {
     // TODO: Navigate to product detail screen
@@ -29,6 +30,12 @@ export default function ProductsScreen() {
         <Text style={styles.headerTitle}>Productos</Text>
         <View style={styles.headerSpacer} />
       </View>
+
+      {error ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{error}</Text>
+        </View>
+      ) : null}
 
       {/* Search + Add */}
       <View style={styles.searchRow}>
@@ -59,11 +66,24 @@ export default function ProductsScreen() {
           <ProductListItem product={item} onPress={handleProductPress} />
         )}
         contentContainerStyle={displayed.length === 0 && styles.emptyContent}
+        refreshing={loading}
+        onRefresh={refresh}
+        onEndReached={() => {
+          if (!isSearching) loadMore();
+        }}
+        onEndReachedThreshold={0.4}
+        ListFooterComponent={
+          loadingMore ? (
+            <ActivityIndicator style={styles.footerLoader} color={Brand.orange} />
+          ) : null
+        }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <IconSymbol name="shippingbox.fill" size={48} color="#E8DDD0" />
-            <Text style={styles.emptyText}>No se encontraron productos</Text>
-          </View>
+          loading ? null : (
+            <View style={styles.empty}>
+              <IconSymbol name="shippingbox.fill" size={48} color="#E8DDD0" />
+              <Text style={styles.emptyText}>No se encontraron productos</Text>
+            </View>
+          )
         }
       />
     </View>
@@ -88,6 +108,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   headerSpacer: { width: 24 },
+  errorBanner: {
+    backgroundColor: `${Brand.danger}14`,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  errorBannerText: { color: Brand.danger, fontSize: 13 },
+  footerLoader: { paddingVertical: 20 },
   searchRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
