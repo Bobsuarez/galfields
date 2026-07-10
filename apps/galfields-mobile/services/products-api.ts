@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
+import { guessImageMimeType, imageFileName } from '@/utils/image-mime';
 import type { ProductInput } from '@/types/product';
 
 export interface RemoteVariantAttribute {
@@ -64,13 +65,6 @@ export async function fetchProducts(page = 0, size = 20): Promise<ProductsPage> 
   return result;
 }
 
-function guessImageMimeType(uri: string): string {
-  const extension = uri.split('.').pop()?.toLowerCase();
-  if (extension === 'png') return 'image/png';
-  if (extension === 'webp') return 'image/webp';
-  return 'image/jpeg';
-}
-
 /**
  * React Native's `Blob` polyfill isn't reliable for in-memory JSON parts
  * (the multipart body it produces can arrive empty/malformed on-device even
@@ -89,7 +83,7 @@ function appendImagePart(formData: FormData, fieldName: string, uri: string): vo
   const mimeType = guessImageMimeType(uri);
   formData.append(fieldName, {
     uri,
-    name: `${fieldName}.${mimeType === 'image/png' ? 'png' : 'jpg'}`,
+    name: imageFileName(fieldName, mimeType),
     type: mimeType,
   } as unknown as Blob);
 }

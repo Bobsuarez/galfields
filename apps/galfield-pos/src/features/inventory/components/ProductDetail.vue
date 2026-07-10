@@ -1,174 +1,116 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { InventoryProduct } from '../../../types'
+import { ref } from 'vue'
+import type { Product } from '../../../types'
+import { formatCurrency } from '../../../utils/currency'
+import { deriveStockStatus } from '../../../utils/stock'
 import AppIcon from '../../../components/shared/AppIcon.vue'
-import { deriveStatus } from '../composables/useInventory'
 
-const props = defineProps<{ product: InventoryProduct; isNew: boolean }>()
-const emit = defineEmits<{
-  (e: 'save', product: InventoryProduct): void
-  (e: 'close'): void
-}>()
+defineProps<{ product: Product }>()
+const emit = defineEmits<{ (e: 'close'): void }>()
 
-const draft = ref<InventoryProduct>({ ...props.product })
-
-watch(() => props.product, (p) => { draft.value = { ...p } }, { immediate: true })
-
-const CATEGORIES = [
-  { id: 'bebidas', name: 'Bebidas' },
-  { id: 'alimentos', name: 'Alimentos' },
-  { id: 'snacks', name: 'Snacks' },
-  { id: 'lacteos', name: 'Lácteos' },
-  { id: 'limpieza', name: 'Limpieza' },
-  { id: 'otros', name: 'Otros' },
-]
-
-const UNITS = ['Unidad', 'Caja', 'Paquete', 'Bolsa', 'Botella', 'Frasco', 'Lata', 'Tarro', 'Barra', 'Par']
+// Same fallback rule as ProductCard.vue: no synced image, or the URL fails
+// to load, falls back to the category emoji.
+const imageFailed = ref(false)
 
 const CATEGORY_EMOJI: Record<string, string> = {
-  bebidas: '🥤', alimentos: '🍚', snacks: '🍟',
-  lacteos: '🥛', limpieza: '🧼', otros: '📦',
+  bebidas: '🥤', beverages: '🥤',
+  comida: '🍽️', alimentos: '🍽️', food: '🍽️',
+  snacks: '🍟',
+  lacteos: '🥛', dairy: '🥛',
+  limpieza: '🧼', cleaning: '🧼',
 }
 
-const CATEGORY_BG: Record<string, string> = {
-  bebidas: 'rgba(33,150,243,0.2)', alimentos: 'rgba(76,175,80,0.2)',
-  snacks: 'rgba(255,152,0,0.2)', lacteos: 'rgba(100,181,246,0.15)',
-  limpieza: 'rgba(0,188,212,0.15)', otros: 'rgba(158,158,158,0.15)',
+function categoryEmoji(category: string): string {
+  return CATEGORY_EMOJI[category.toLowerCase()] ?? '📦'
 }
 
 const STATUS_LABEL = { 'en-stock': 'En stock', 'stock-bajo': 'Stock bajo', 'sin-stock': 'Sin stock' }
 const STATUS_CLASS = { 'en-stock': 'badge--ok', 'stock-bajo': 'badge--warn', 'sin-stock': 'badge--err' }
 
-function onSave() {
-  emit('save', { ...draft.value })
+function formatSyncDate(value: string | null): string {
+  if (!value) return 'Nunca'
+  return new Date(value).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })
 }
 </script>
 
 <template>
-  <aside class="detail-panel">
+  <aside class="detail-panel" :class="{ 'detail-panel--inactive': !product.isActive }">
     <div class="detail-header">
-      <h3 class="detail-title">{{ isNew ? 'Nuevo Producto' : 'Detalle del Producto' }}</h3>
+      <h3 class="detail-title">Detalle del Producto</h3>
       <button class="close-btn" @click="emit('close')">
         <AppIcon name="x" :size="15" />
       </button>
     </div>
 
     <div class="detail-scroll">
-      <div class="product-image-area" :style="{ background: CATEGORY_BG[draft.category] ?? 'rgba(242,141,53,0.12)' }">
-        <span class="product-emoji">{{ CATEGORY_EMOJI[draft.category] ?? '📦' }}</span>
-        <span
-          v-if="!isNew"
-          class="status-chip"
-          :class="STATUS_CLASS[deriveStatus(product)]"
-        >{{ STATUS_LABEL[deriveStatus(product)] }}</span>
+      <div class="product-image-area" :class="{ 'product-image-area--photo': product.imagePath && !imageFailed }">
+        <img
+          v-if="product.imagePath && !imageFailed"
+          :src="product.imagePath"
+          class="product-photo"
+          alt=""
+          @error="imageFailed = true"
+        />
+        <span v-else class="product-emoji">{{ categoryEmoji(product.category) }}</span>
+        <span v-if="!product.isActive" class="status-chip badge--inactive">Desactivado</span>
+        <span v-else class="status-chip" :class="STATUS_CLASS[deriveStockStatus(product.stockQuantity)]">
+          {{ STATUS_LABEL[deriveStockStatus(product.stockQuantity)] }}
+        </span>
       </div>
 
-      <p class="edit-image-link">Editar imagen</p>
+      <p v-if="!product.isActive" class="inactive-banner">
+        Este producto fue desactivado desde la app móvil (o ya no aparece en el catálogo de la nube) — no es vendible en el POS.
+      </p>
 
       <div class="form-section">
         <div class="field">
-          <label class="field-label">Código</label>
-          <input v-model="draft.barcode" class="field-input" placeholder="0000" :readonly="!isNew" />
+          <span class="field-label">Nombre</span>
+          <p class="field-value">{{ product.productName }}</p>
         </div>
         <div class="field">
-          <label class="field-label">Nombre</label>
-          <input v-model="draft.name" class="field-input" placeholder="Nombre del producto" />
+          <span class="field-label">Categoría</span>
+          <p class="field-value">{{ product.category || 'Sin categoría' }}</p>
         </div>
         <div class="field">
-          <label class="field-label">Categoría</label>
-          <select v-model="draft.category" class="field-input">
-            <option v-for="cat in CATEGORIES" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="field-label">Descripción</label>
-          <textarea v-model="draft.description" class="field-input field-textarea" rows="2" placeholder="Descripción del producto..." />
+          <span class="field-label">Código de barras</span>
+          <p class="field-value field-value--mono">{{ product.barcode || '—' }}</p>
         </div>
       </div>
 
       <div class="section-divider">
-        <span>Información de Inventario</span>
+        <span>Inventario</span>
       </div>
 
       <div class="form-section">
         <div class="field-row">
           <div class="field">
-            <label class="field-label">Stock Actual</label>
-            <div class="field-suffix-wrap">
-              <input v-model.number="draft.currentStock" type="number" min="0" class="field-input" />
-              <span class="field-suffix">uds.</span>
-            </div>
+            <span class="field-label">Stock actual</span>
+            <p class="field-value">{{ product.stockQuantity }} uds.</p>
           </div>
           <div class="field">
-            <label class="field-label">Stock Mínimo</label>
-            <div class="field-suffix-wrap">
-              <input v-model.number="draft.minStock" type="number" min="0" class="field-input" />
-              <span class="field-suffix">uds.</span>
-            </div>
+            <span class="field-label">Precio</span>
+            <p class="field-value">{{ formatCurrency(product.unitPrice) }}</p>
           </div>
         </div>
         <div class="field">
-          <label class="field-label">Unidad de Venta</label>
-          <select v-model="draft.unitOfSale" class="field-input">
-            <option v-for="u in UNITS" :key="u" :value="u">{{ u }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="field-label">Proveedor</label>
-          <input v-model="draft.supplier" class="field-input" placeholder="Nombre del proveedor" />
-        </div>
-      </div>
-
-      <div class="section-divider">
-        <span>Información de Precios</span>
-      </div>
-
-      <div class="form-section">
-        <div class="field">
-          <label class="field-label">Precio de Compra</label>
-          <div class="field-prefix-wrap">
-            <span class="field-prefix">$</span>
-            <input v-model.number="draft.purchasePrice" type="number" min="0" class="field-input" />
-          </div>
-        </div>
-        <div class="field">
-          <label class="field-label">Precio de Venta</label>
-          <div class="field-prefix-wrap">
-            <span class="field-prefix">$</span>
-            <input v-model.number="draft.salePrice" type="number" min="0" class="field-input" />
-          </div>
-        </div>
-        <div class="field">
-          <label class="field-label">IVA (%)</label>
-          <input v-model.number="draft.iva" type="number" min="0" max="100" class="field-input" />
-        </div>
-        <div v-if="!isNew" class="margin-row">
-          <span class="margin-label">Margen de ganancia</span>
-          <span class="margin-value">
-            {{ draft.purchasePrice > 0
-              ? Math.round((draft.salePrice - draft.purchasePrice) / draft.purchasePrice * 100) + '%'
-              : '—' }}
-          </span>
+          <span class="field-label">Última sincronización</span>
+          <p class="field-value">{{ formatSyncDate(product.lastSyncAt) }}</p>
         </div>
       </div>
     </div>
 
     <div class="detail-footer">
-      <button class="btn-save" @click="onSave">
-        <AppIcon name="check" :size="14" />
-        Guardar Cambios
-      </button>
-      <button class="btn-maintenance">
-        <AppIcon name="refresh" :size="14" />
-        Mantenimiento
-      </button>
+      <p class="detail-footer-hint">
+        Este catálogo se administra desde la app móvil y se actualiza aquí con
+        Sincronización — no es editable directamente en el POS.
+      </p>
     </div>
   </aside>
 </template>
 
 <style scoped>
 .detail-panel {
-  width: 300px;
+  width: 350px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -219,13 +161,29 @@ function onSave() {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100px;
+  height: 250px;
   position: relative;
   flex-shrink: 0;
+  background: rgba(242,141,53,0.12);
+}
+
+/* Real product photos get a clean white backdrop instead of the category
+   tint, shown in full (never cropped) — the tint stays reserved for the
+   category-emoji fallback. Matches ProductCard.vue's treatment. */
+.product-image-area--photo {
+  background: #fff;
+}
+
+.product-photo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 .product-emoji {
-  font-size: 52px;
+  font-size: 84px;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));
 }
 
@@ -242,14 +200,24 @@ function onSave() {
 .badge--ok { background: rgba(76,175,80,0.2); color: #81C784; }
 .badge--warn { background: rgba(255,152,0,0.2); color: #FFB74D; }
 .badge--err { background: rgba(229,57,53,0.2); color: #EF5350; }
+.badge--inactive { background: rgba(158,158,158,0.25); color: #BDBDBD; }
 
-.edit-image-link {
-  text-align: center;
+/* Whole panel dims when the product is deactivated, same treatment as the
+   Inventory row - a clear "not currently sellable" read without hiding it. */
+.detail-panel--inactive .form-section,
+.detail-panel--inactive .product-image-area {
+  opacity: 0.6;
+}
+
+.inactive-banner {
+  margin: 10px 14px 0;
+  padding: 8px 10px;
+  background: rgba(158,158,158,0.15);
+  border: 1px solid rgba(158,158,158,0.3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
   font-size: 11px;
-  color: var(--color-primary);
-  padding: 6px 0 2px;
-  cursor: pointer;
-  text-decoration: underline;
+  line-height: 1.5;
 }
 
 .form-section {
@@ -273,64 +241,21 @@ function onSave() {
   letter-spacing: 0.4px;
 }
 
-.field-input {
+.field-value {
+  font-size: 13px;
+  color: var(--color-text);
   background: var(--color-surface-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font-size: 12.5px;
   padding: 7px 10px;
-  width: 100%;
-  transition: border-color 0.2s;
-  font-family: inherit;
 }
 
-.field-input:focus { border-color: var(--color-primary); }
-.field-input[readonly] { opacity: 0.6; cursor: default; }
-
-.field-textarea { resize: none; line-height: 1.5; }
+.field-value--mono { font-family: monospace; }
 
 .field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-}
-
-.field-suffix-wrap, .field-prefix-wrap {
-  display: flex;
-  align-items: center;
-  background: var(--color-surface-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  transition: border-color 0.2s;
-}
-
-.field-suffix-wrap:focus-within, .field-prefix-wrap:focus-within { border-color: var(--color-primary); }
-
-.field-suffix-wrap .field-input,
-.field-prefix-wrap .field-input {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  flex: 1;
-}
-
-.field-suffix, .field-prefix {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  padding: 0 8px;
-  background: rgba(242,141,53,0.06);
-  height: 100%;
-  display: flex;
-  align-items: center;
-  border-left: 1px solid var(--color-border);
-  flex-shrink: 0;
-}
-
-.field-prefix {
-  border-left: none;
-  border-right: 1px solid var(--color-border);
 }
 
 .section-divider {
@@ -352,61 +277,15 @@ function onSave() {
   background: var(--color-border);
 }
 
-.margin-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  background: rgba(242,141,53,0.06);
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(242,141,53,0.12);
-}
-
-.margin-label { font-size: 11px; color: var(--color-text-muted); }
-.margin-value { font-size: 13px; font-weight: 700; color: var(--color-primary); }
-
 .detail-footer {
   padding: 10px 14px;
   border-top: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
   flex-shrink: 0;
 }
 
-.btn-save {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px;
-  background: var(--color-primary);
-  border: none;
-  border-radius: var(--radius-sm);
-  color: #0D0D0D;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s;
+.detail-footer-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
 }
-
-.btn-save:hover { background: var(--color-primary-hover); }
-
-.btn-maintenance {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px;
-  background: transparent;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-sm);
-  color: var(--color-primary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-maintenance:hover { background: rgba(242,141,53,0.1); }
 </style>

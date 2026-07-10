@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { useInventory, INVENTORY_CATEGORIES } from './composables/useInventory'
+import { useInventory } from './composables/useInventory'
 import InventoryTable from './components/InventoryTable.vue'
 import ProductDetail from './components/ProductDetail.vue'
 
 const {
-  searchQuery, activeCategory, currentPage, pageSize, totalPages,
-  filtered, paginated, selectedProduct, isNewProduct,
-  selectCategory, selectProduct, closeDetail, newProduct,
-  saveProduct, deleteProduct, prevPage, nextPage, goToPage,
+  categories, searchQuery, activeCategory, currentPage, pageSize, totalPages,
+  filtered, paginated, selectedProduct,
+  selectCategory, selectProduct, closeDetail,
+  prevPage, nextPage, goToPage,
 } = useInventory()
 </script>
 
@@ -23,7 +23,7 @@ const {
     <div class="inv-body">
       <InventoryTable
         :products="paginated"
-        :categories="INVENTORY_CATEGORIES"
+        :categories="categories"
         :active-category="activeCategory"
         :selected-id="selectedProduct?.id ?? null"
         :search-query="searchQuery"
@@ -34,19 +34,16 @@ const {
         @update:search-query="searchQuery = $event"
         @update:page-size="pageSize = $event"
         @select="selectProduct"
-        @delete="deleteProduct"
         @category="selectCategory"
         @prev="prevPage"
         @next="nextPage"
         @page="goToPage"
-        @new="newProduct"
       />
 
       <ProductDetail
         v-if="selectedProduct"
+        :key="selectedProduct.id"
         :product="selectedProduct"
-        :is-new="isNewProduct"
-        @save="saveProduct"
         @close="closeDetail"
       />
     </div>

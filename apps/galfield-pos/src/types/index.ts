@@ -55,22 +55,6 @@ export interface ShortcutKey {
 
 export type StockStatus = 'en-stock' | 'stock-bajo' | 'sin-stock'
 
-export interface InventoryProduct {
-  id: string
-  barcode: string
-  name: string
-  category: string
-  currentStock: number
-  minStock: number
-  salesCount: number
-  purchasePrice: number
-  salePrice: number
-  iva: number
-  supplier: string
-  description: string
-  unitOfSale: string
-}
-
 export type ConfigTab = 'empresa' | 'usuarios' | 'impuestos' | 'avanzado' | 'seguridad' | 'sistema' | 'idioma' | 'perifericos'
 
 export interface ColorPreset {
@@ -111,6 +95,10 @@ export interface ConfigSettings {
     backupInterval: string
     priceSyncHours: number
     invoicePrefix: string
+    /** How often the background loop retries pushing pending sales to the
+     * cloud (minutes) — deliberately separate from priceSyncHours, which
+     * governs pulling the catalog down (see sales_sync.rs). */
+    salesRetryMinutes: number
   }
   styles: {
     theme: 'dark' | 'light' | 'auto'

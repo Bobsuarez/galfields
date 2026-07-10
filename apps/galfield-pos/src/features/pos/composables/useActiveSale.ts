@@ -2,6 +2,7 @@ import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppConfig } from '../../../composables/useAppConfig'
 import { usePaymentMethods } from '../../../composables/usePaymentMethods'
+import { useToast } from '../../../composables/useToast'
 import type { CartItem, PendingSale, Product } from '../../../types'
 
 export const SALE_ICONS = [
@@ -20,6 +21,7 @@ export function getSaleEmoji(iconKey: string): string {
 export function useActiveSale() {
   const { config } = useAppConfig()
   const { paymentMethods, loadPaymentMethods } = usePaymentMethods()
+  const { show: showToast } = useToast()
 
   const customerName  = ref('')
   const cartItems     = ref<CartItem[]>([])
@@ -90,7 +92,25 @@ export function useActiveSale() {
 
   // ── Cart actions ──────────────────────────────────────────────────────────
 
+  /** Deactivation always blocks a sale, regardless of `validate_stock` -
+   * that toggle is specifically about stock quantity, not about whether the
+   * product is sellable at all. Mirrors ProductCard.vue's own
+   * `unavailableReason` precedence (deactivated beats out-of-stock). */
+  function unavailableReason(product: Product): string | null {
+    if (!product.isActive) return `"${product.productName}" está desactivado`
+    if (config.defaults.validateStock) {
+      const inCart = cartItems.value.find(i => i.product.id === product.id)?.quantity ?? 0
+      if (inCart >= product.stockQuantity) return `Sin stock suficiente de "${product.productName}"`
+    }
+    return null
+  }
+
   function addProduct(product: Product) {
+    const reason = unavailableReason(product)
+    if (reason) {
+      showToast(reason, 'error')
+      return
+    }
     const existing = cartItems.value.find(i => i.product.id === product.id)
     if (existing) {
       existing.quantity++
@@ -99,7 +119,14 @@ export function useActiveSale() {
     }
   }
 
-  function increaseQty(item: CartItem) { item.quantity++ }
+  function increaseQty(item: CartItem) {
+    const reason = unavailableReason(item.product)
+    if (reason) {
+      showToast(reason, 'error')
+      return
+    }
+    item.quantity++
+  }
 
   function decreaseQty(item: CartItem) {
     if (item.quantity > 1) item.quantity--

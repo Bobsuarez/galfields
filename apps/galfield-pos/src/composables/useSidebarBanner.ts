@@ -1,12 +1,9 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { StockAlert } from '../types'
+import { LOW_STOCK_THRESHOLD } from '../utils/stock'
 
-// No `min_stock` column on `products` yet, so "low stock" is a single fixed
-// threshold rather than a per-product comparison — swap for a real column
-// once one exists.
-const LOW_STOCK_THRESHOLD = 5
-const LOW_STOCK_LIMIT     = 5
+const LOW_STOCK_LIMIT = 5
 const CYCLE_INTERVAL_MS   = 10 * 60 * 1000
 
 const mascotImages = Object.values(

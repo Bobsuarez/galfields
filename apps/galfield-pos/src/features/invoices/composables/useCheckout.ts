@@ -183,13 +183,23 @@ export function useCheckout(onComplete: () => void) {
           .catch(() => { /* failure is reported via onCashDrawerError */ })
       }
 
+      // Fire-and-forget push to the cloud (see sales_sync.rs) - never gates
+      // checkout on network state. If this fails (offline), the background
+      // retry loop in lib.rs picks it back up on its own schedule; the
+      // sale is already committed locally either way.
+      invoke('push_pending_sales').catch(() => { /* retried by the background loop */ })
+
       show(`Factura ${result.invoiceNumber} generada con éxito`, 'success')
       showModal.value = false
       currentSale      = null
       onComplete()
     } catch (e) {
       console.error('[checkout] failed:', e)
-      show('No se pudo completar la factura', 'error')
+      // `create_sale` rejects with a specific message (e.g. insufficient
+      // stock) - surface that instead of a generic one, so the cashier
+      // knows exactly why (relevant now that stock is actually enforced).
+      const message = e instanceof Error ? e.message : String(e)
+      show(message || 'No se pudo completar la factura', 'error')
     } finally {
       isProcessing.value = false
     }

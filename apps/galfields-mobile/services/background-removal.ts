@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { guessImageMimeType, imageFileName } from '@/utils/image-mime';
 
 const CLIPDROP_URL = 'https://clipdrop-api.co/remove-background/v1';
 
@@ -21,11 +22,12 @@ export async function removeBackground(imageUri: string): Promise<string> {
   const apiKey = process.env.EXPO_PUBLIC_CLIPDROP_API_KEY;
   if (!apiKey) throw new Error('EXPO_PUBLIC_CLIPDROP_API_KEY no está configurada.');
 
+  const mimeType = guessImageMimeType(imageUri);
   const formData = new FormData();
   formData.append('image_file', {
     uri: imageUri,
-    name: 'product.jpg',
-    type: 'image/jpeg',
+    name: imageFileName('product', mimeType),
+    type: mimeType,
   } as unknown as Blob);
 
   const response = await fetch(CLIPDROP_URL, {

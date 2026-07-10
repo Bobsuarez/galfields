@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { formatTime, formatDate } from '../../utils/currency'
+import { useSalesSyncStatus } from '../../composables/useSalesSyncStatus'
 import type { ShortcutKey } from '../../types'
 
 const now = ref(new Date())
@@ -10,6 +11,11 @@ onMounted(() => {
   timer = setInterval(() => { now.value = new Date() }, 1000)
 })
 onUnmounted(() => clearInterval(timer))
+
+// "Sin sincronizar" here means sales not yet reported to the cloud — not to
+// be confused with the "Ventas Pendientes" (F4) shortcut below, which is a
+// different concept (held/parked sales waiting to be resumed).
+const { pendingCount: pendingSyncCount } = useSalesSyncStatus()
 
 const shortcuts: ShortcutKey[] = [
   { key: 'F1', label: 'Nueva Venta', action: 'nueva-venta' },
@@ -29,6 +35,10 @@ const shortcuts: ShortcutKey[] = [
       </div>
     </div>
     <div class="statusbar-clock">
+      <span v-if="pendingSyncCount > 0" class="sync-badge" :title="`${pendingSyncCount} venta(s) sin sincronizar con la nube`">
+        <span class="sync-dot"></span>
+        {{ pendingSyncCount }} sin sincronizar
+      </span>
       <span class="clock-date">{{ formatDate(now) }}</span>
       <span class="clock-time">{{ formatTime(now) }}</span>
     </div>
@@ -85,6 +95,26 @@ const shortcuts: ShortcutKey[] = [
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.sync-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 152, 0, 0.15);
+  color: #FFB74D;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FFB74D;
+  flex-shrink: 0;
 }
 
 .clock-date {
