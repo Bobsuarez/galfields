@@ -76,18 +76,42 @@ On update, variants are upserted by `sku` against the product's existing variant
 
 ## Category / Brand / Location / Payment Method CRUD endpoints
 
-`/api/categories`, `/api/brands`, `/api/locations`, and `/api/payment-methods` are plain CRUDs (`*Controller` → `*Service` → `*Repository`), same shape as each other:
+`/api/categories`, `/api/brands`, `/api/locations`, and `/api/payment-methods` are CRUDs (`*Controller` → `*Service` → `*Repository`). The first three take a plain JSON body; `/api/payment-methods` is multipart because it also carries an optional image (see below) — otherwise all four share the same shape:
 
 - `/api/categories`: `POST`/`PUT` take `{ name, description }` (`name` required); `categories` has a `description` column.
 - `/api/brands`: `POST`/`PUT` take `{ name }` only (`name` required) — `brands` has **no** `description` column (see `doc/data_base.sql`), don't add one to `BrandRequest`/`BrandResponse` without a matching migration first.
 - `/api/locations`: `POST`/`PUT` take `{ name, address, phone }` (`name` required, `address`/`phone` optional).
-- `/api/payment-methods`: `POST`/`PUT` take `{ methodName, active }` (both required) — unlike the other three, `payment_methods` *does* have an `is_active` column, so `active` is a plain required field on the request/response instead of a separate deactivate endpoint like products use.
+- `/api/payment-methods`: `POST`/`PUT` are `multipart/form-data` — a `paymentMethod` JSON part `{ methodName, active }` (both required) plus an optional `image` file part, same two-part shape as `/api/products`. Unlike the other three, `payment_methods` *does* have an `is_active` column, so `active` is a plain required field on the request/response instead of a separate deactivate endpoint like products use.
 
 All four: `GET` lists all or fetches by id, `DELETE` hard-deletes (none of `categories`/`brands`/`locations` have an `is_active`/soft-delete column, unlike products; `payment_methods` has one but `DELETE` still hard-deletes rather than flipping it). None of `categories.name` / `brands.name` / `locations.name` / `payment_methods.method_name` has a `UNIQUE` constraint in the DB, so duplicate names are allowed on purpose (no app-level uniqueness check).
 
 Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON DELETE` clause → default `RESTRICT`) returns a clean 409 instead of a raw 500: `GlobalExceptionHandler` catches `DataIntegrityViolationException` generically, so this covers any FK-constrained delete across all four, and any future one.
 
+### Payment method image
+
+`payment_methods_images` (migration `V3__payment_methods_images.sql`) is a 1:1 join to `attach_files`, same pattern as `product_images`/`product_variants_images` — `PaymentMethod.image` is a `@OneToOne(mappedBy = "paymentMethod", cascade = ALL, orphanRemoval = true)`. `MinioService#uploadPaymentMethodImage` uploads under the object key prefix `files/payment_method/<method-name-slug>/<uuid>.ext` (singular `payment_method`, unlike the pluralized product paths). `PaymentMethodService` mirrors `ProductService`'s image flow: on create/update, an uploaded `image` replaces any existing one (old MinIO object deleted after the new one is attached); unlike products, `/api/payment-methods` hard-deletes, so `deletePaymentMethod` also explicitly deletes the MinIO object and the `attach_files` row for the image (products never do this since they're soft-deleted and never reach this code path).
+
 **Indispensable:** `ProductService` hard-codes the location named `Bodega Principal` (`DEFAULT_LOCATION_NAME`) as the inventory location for every product/variant created or updated through `/api/products` — it's not configurable yet. Renaming or deleting that location breaks product creation/stock updates (`ResourceNotFoundException` on create; deletion is blocked by the FK-conflict 409 once any inventory row references it, but renaming it isn't blocked by anything). If you need a different default location, update `ProductService.DEFAULT_LOCATION_NAME` too, don't just change the row via `/api/locations`.
+
+## Inventory adjustment endpoint (`POST /api/inventory/adjustments`)
+
+`InventoryController` → `InventoryService` → `InventoryRepository`/`StockAdjustmentRepository`. This is how offline-first clients (currently: the desktop POS's outbox, not yet built — see that repo's CLAUDE.md) report stock changes that already happened locally (a sale decrements; a future return/manual correction could increment), batched one call per sale:
+
+```json
+{
+  "clientEventId": "<uuid the client generated for this sale>",
+  "items": [
+    { "variantId": 12, "quantityDelta": -2 },
+    { "variantId": 45, "quantityDelta": -1 }
+  ]
+}
+```
+
+- **Idempotent per `(clientEventId, variantId)`** — `stock_adjustments` (migration `V2__stock_adjustments.sql`) has a `UNIQUE (client_event_id, variant_id)` constraint backing `existsByClientEventIdAndVariant_VariantId`. A retried batch (client applied it locally but never saw the response, or only part of a previous batch succeeded before a crash) replays `alreadyProcessed: true` per already-seen item instead of double-applying — safe to retry the exact same request any number of times.
+- **Scoped to `DEFAULT_LOCATION_NAME`** ("Bodega Principal"), same as every other inventory write in this codebase — there's no per-request location, and no multi-location support yet (see the indispensable note above).
+- **Negative resulting stock is allowed, not rejected.** The physical sale already happened by the time this is called (e.g. two terminals both sold the last unit before either synced) — recording an oversell truthfully is more useful than rejecting a call that can't undo something that already occurred in the real world.
+- `resultingQuantity` in the response is `inventory.quantity_on_hand` *after* applying that item (or the value from the original application, on an idempotent replay) — callers can use it to detect oversells after the fact, not to gate anything server-side.
+- Unlike `/api/categories`/`/api/brands`/`/api/locations`, this is not a CRUD resource — there's no `GET`/list endpoint, since `stock_adjustments` is an append-only audit log of what's already been applied to `inventory`, not something clients browse.
 
 ## Image compression utility
 

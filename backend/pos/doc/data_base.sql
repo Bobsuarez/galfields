@@ -53,6 +53,7 @@ CREATE TABLE payment_methods
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
 CREATE TABLE attach_files
 (
     attach_files_id BIGSERIAL PRIMARY KEY,
@@ -61,6 +62,16 @@ CREATE TABLE attach_files
     mime_type       varchar(100) NOT NULL,
     size            INT          NOT NULL,
     create_at       timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Imagen de un método de pago (1:1). Debe ir después de attach_files, ya
+-- que la referencia FK requiere que esa tabla exista primero.
+CREATE TABLE payment_methods_images
+(
+    id               BIGSERIAL PRIMARY KEY,
+    payment_methods  BIGINT UNIQUE NOT NULL REFERENCES payment_methods (payment_method_id),
+    image_product    BIGINT        NOT NULL REFERENCES attach_files (attach_files_id),
+    create_at        timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
 
@@ -178,6 +189,20 @@ CREATE TRIGGER trg_inventory_last_updated
     BEFORE UPDATE
     ON inventory
     FOR EACH ROW EXECUTE FUNCTION set_last_updated();
+
+-- 4b. Ajustes de stock reportados por terminales POS (idempotentes por
+-- client_event_id + variant_id - ver V2__stock_adjustments.sql)
+CREATE TABLE stock_adjustments
+(
+    adjustment_id      BIGSERIAL PRIMARY KEY,
+    client_event_id    VARCHAR(100) NOT NULL,
+    variant_id         BIGINT       NOT NULL REFERENCES product_variants (variant_id),
+    location_id        BIGINT       NOT NULL REFERENCES locations (location_id),
+    quantity_delta     INT          NOT NULL,
+    resulting_quantity INT          NOT NULL,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (client_event_id, variant_id)
+);
 
 -- 5. Transacciones de venta
 CREATE TABLE sales_transactions

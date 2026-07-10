@@ -1,6 +1,7 @@
 package co.com.galfields.pos.service;
 
 import co.com.galfields.pos.config.MinioProperties;
+import co.com.galfields.pos.entity.PaymentMethod;
 import co.com.galfields.pos.entity.Product;
 import co.com.galfields.pos.entity.ProductVariant;
 import co.com.galfields.pos.exception.StorageException;
@@ -34,6 +35,14 @@ public class MinioService {
     public String uploadVariantImage(Product product, ProductVariant variant, MultipartFile originalFile, byte[] imageData) {
         String folder = "%s/%s/%s/variants/%s".formatted(
                 OBJECT_KEY_PREFIX, categorySlugOf(product), slugify(product.getName()), slugify(variant.getSku()));
+        return upload(folder, originalFile, imageData);
+    }
+
+    /**
+     * files/payment_method/&lt;nombre-slug&gt;/&lt;uuid&gt;.ext
+     */
+    public String uploadPaymentMethodImage(PaymentMethod paymentMethod, MultipartFile originalFile, byte[] imageData) {
+        String folder = "%s/payment_method/%s".formatted(OBJECT_KEY_PREFIX, slugify(paymentMethod.getMethodName()));
         return upload(folder, originalFile, imageData);
     }
 
