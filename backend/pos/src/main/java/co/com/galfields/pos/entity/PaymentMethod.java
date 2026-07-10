@@ -1,10 +1,12 @@
 package co.com.galfields.pos.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -27,6 +29,9 @@ public class PaymentMethod {
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    @OneToOne(mappedBy = "paymentMethod", cascade = CascadeType.ALL, orphanRemoval = true)
+    private PaymentMethodImage image;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

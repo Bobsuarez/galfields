@@ -6,5 +6,6 @@ public record PaymentMethodResponse(
         Long paymentMethodId,
         String methodName,
         boolean active,
+        String imageUrl,
         LocalDateTime createdAt) {
 }
