@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS: ConfigSettings = {
     backupInterval: '30min',
     priceSyncHours: 24,
     invoicePrefix: 'FAC-',
+    salesRetryMinutes: 5,
   },
   styles: {
     theme: 'dark',
@@ -83,9 +84,10 @@ export function applyRecord(target: ConfigSettings, record: Record<string, strin
   target.defaults.validateStock      = bool('defaults.validate_stock',       target.defaults.validateStock)
   target.defaults.invoiceArchiveFolder = str('defaults.invoice_archive_folder', target.defaults.invoiceArchiveFolder)
 
-  target.sync.backupInterval  = str('sync.backup_interval',  target.sync.backupInterval)
-  target.sync.priceSyncHours  = num('sync.price_sync_hours', target.sync.priceSyncHours)
-  target.sync.invoicePrefix   = str('sync.invoice_prefix',   target.sync.invoicePrefix)
+  target.sync.backupInterval   = str('sync.backup_interval',      target.sync.backupInterval)
+  target.sync.priceSyncHours   = num('sync.price_sync_hours',     target.sync.priceSyncHours)
+  target.sync.invoicePrefix    = str('sync.invoice_prefix',       target.sync.invoicePrefix)
+  target.sync.salesRetryMinutes = num('sync.sales_retry_minutes', target.sync.salesRetryMinutes)
 
   target.styles.theme         = str('styles.theme',          target.styles.theme) as ConfigSettings['styles']['theme']
   target.styles.primaryColor  = str('styles.primary_color',  target.styles.primaryColor)
@@ -130,9 +132,10 @@ export function settingsToRecord(s: ConfigSettings): Record<string, string> {
     'defaults.validate_stock':       String(s.defaults.validateStock),
     'defaults.invoice_archive_folder': s.defaults.invoiceArchiveFolder,
 
-    'sync.backup_interval':  s.sync.backupInterval,
-    'sync.price_sync_hours': String(s.sync.priceSyncHours),
-    'sync.invoice_prefix':   s.sync.invoicePrefix,
+    'sync.backup_interval':     s.sync.backupInterval,
+    'sync.price_sync_hours':    String(s.sync.priceSyncHours),
+    'sync.invoice_prefix':      s.sync.invoicePrefix,
+    'sync.sales_retry_minutes': String(s.sync.salesRetryMinutes),
 
     'styles.theme':          s.styles.theme,
     'styles.primary_color':  s.styles.primaryColor,

@@ -88,6 +88,26 @@ Deleting a row still referenced by a product/inventory/sale (FK, no `ON DELETE` 
 
 **Indispensable:** `ProductService` hard-codes the location named `Bodega Principal` (`DEFAULT_LOCATION_NAME`) as the inventory location for every product/variant created or updated through `/api/products` — it's not configurable yet. Renaming or deleting that location breaks product creation/stock updates (`ResourceNotFoundException` on create; deletion is blocked by the FK-conflict 409 once any inventory row references it, but renaming it isn't blocked by anything). If you need a different default location, update `ProductService.DEFAULT_LOCATION_NAME` too, don't just change the row via `/api/locations`.
 
+## Inventory adjustment endpoint (`POST /api/inventory/adjustments`)
+
+`InventoryController` → `InventoryService` → `InventoryRepository`/`StockAdjustmentRepository`. This is how offline-first clients (currently: the desktop POS's outbox, not yet built — see that repo's CLAUDE.md) report stock changes that already happened locally (a sale decrements; a future return/manual correction could increment), batched one call per sale:
+
+```json
+{
+  "clientEventId": "<uuid the client generated for this sale>",
+  "items": [
+    { "variantId": 12, "quantityDelta": -2 },
+    { "variantId": 45, "quantityDelta": -1 }
+  ]
+}
+```
+
+- **Idempotent per `(clientEventId, variantId)`** — `stock_adjustments` (migration `V2__stock_adjustments.sql`) has a `UNIQUE (client_event_id, variant_id)` constraint backing `existsByClientEventIdAndVariant_VariantId`. A retried batch (client applied it locally but never saw the response, or only part of a previous batch succeeded before a crash) replays `alreadyProcessed: true` per already-seen item instead of double-applying — safe to retry the exact same request any number of times.
+- **Scoped to `DEFAULT_LOCATION_NAME`** ("Bodega Principal"), same as every other inventory write in this codebase — there's no per-request location, and no multi-location support yet (see the indispensable note above).
+- **Negative resulting stock is allowed, not rejected.** The physical sale already happened by the time this is called (e.g. two terminals both sold the last unit before either synced) — recording an oversell truthfully is more useful than rejecting a call that can't undo something that already occurred in the real world.
+- `resultingQuantity` in the response is `inventory.quantity_on_hand` *after* applying that item (or the value from the original application, on an idempotent replay) — callers can use it to detect oversells after the fact, not to gate anything server-side.
+- Unlike `/api/categories`/`/api/brands`/`/api/locations`, this is not a CRUD resource — there's no `GET`/list endpoint, since `stock_adjustments` is an append-only audit log of what's already been applied to `inventory`, not something clients browse.
+
 ## Image compression utility
 
 `co.com.galfields.pos.util.ImageCompressor` (Thumbnailator-backed) downscales images to a 1600px max dimension (never upscales) and re-encodes JPEGs at ~82% quality before upload; PNGs and unrecognized content types pass through mostly as-is. It's a plain `@Component` with a single `compress(MultipartFile): byte[]` method, meant to be called by any service before handing bytes to `MinioService` — not specific to products. `ProductService` calls it for both product and variant images.

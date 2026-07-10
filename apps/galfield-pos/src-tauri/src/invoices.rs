@@ -47,10 +47,48 @@ pub fn create_sale(
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.conn.transaction().map_err(|e| e.to_string())?;
 
+    // `defaults.validate_stock` (Configuración → Por Defecto) gates whether
+    // selling more than what's on hand is even allowed. Checked up front, in
+    // the same transaction as the writes below, so a rejection here rolls
+    // back cleanly (the transaction is simply never committed).
+    let validate_stock: bool = tx
+        .query_row(
+            "SELECT value_property FROM app_settings WHERE key_property = 'defaults.validate_stock'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|v| v == "true")
+        .unwrap_or(false);
+
+    if validate_stock {
+        for item in &items {
+            let (product_name, current_stock): (String, f64) = tx
+                .query_row(
+                    "SELECT product_name, stock_quantity FROM products WHERE id = ?1",
+                    rusqlite::params![item.product_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .map_err(|e| format!("Producto {} no encontrado: {}", item.product_id, e))?;
+
+            if (item.quantity as f64) > current_stock {
+                return Err(format!(
+                    "Stock insuficiente para \"{}\": disponible {}, solicitado {}",
+                    product_name, current_stock, item.quantity
+                ));
+            }
+        }
+    }
+
+    // Generated up front so it exists from the very first insert - this is
+    // the idempotency key `sales_sync::push_pending_sales` sends as the
+    // cloud endpoint's `clientEventId` (see backend/pos's
+    // POST /api/inventory/adjustments).
+    let sync_uuid = uuid::Uuid::new_v4().to_string();
+
     tx.execute(
-        "INSERT INTO sales (subtotal, discount, total, payment_method, notes, amount_received, change_due)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        rusqlite::params![subtotal, discount, total, payment_method_id, notes, amount_received, change_due],
+        "INSERT INTO sales (subtotal, discount, total, payment_method, notes, amount_received, change_due, sync_uuid)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![subtotal, discount, total, payment_method_id, notes, amount_received, change_due, sync_uuid],
     )
     .map_err(|e| e.to_string())?;
 
@@ -61,6 +99,16 @@ pub fn create_sale(
             "INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             rusqlite::params![sale_id, item.product_id, item.quantity, item.unit_price, item.subtotal],
+        )
+        .map_err(|e| e.to_string())?;
+
+        // Local stock reflects sales immediately — this is what the cloud
+        // push (future work, see CLAUDE.md's sync strategy) will eventually
+        // report upstream; for now it's what keeps Inventory/POS stock
+        // counts honest between catalog syncs.
+        tx.execute(
+            "UPDATE products SET stock_quantity = stock_quantity - ?1 WHERE id = ?2",
+            rusqlite::params![item.quantity as f64, item.product_id],
         )
         .map_err(|e| e.to_string())?;
     }

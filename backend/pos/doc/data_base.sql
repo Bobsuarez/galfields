@@ -179,6 +179,20 @@ CREATE TRIGGER trg_inventory_last_updated
     ON inventory
     FOR EACH ROW EXECUTE FUNCTION set_last_updated();
 
+-- 4b. Ajustes de stock reportados por terminales POS (idempotentes por
+-- client_event_id + variant_id - ver V2__stock_adjustments.sql)
+CREATE TABLE stock_adjustments
+(
+    adjustment_id      BIGSERIAL PRIMARY KEY,
+    client_event_id    VARCHAR(100) NOT NULL,
+    variant_id         BIGINT       NOT NULL REFERENCES product_variants (variant_id),
+    location_id        BIGINT       NOT NULL REFERENCES locations (location_id),
+    quantity_delta     INT          NOT NULL,
+    resulting_quantity INT          NOT NULL,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (client_event_id, variant_id)
+);
+
 -- 5. Transacciones de venta
 CREATE TABLE sales_transactions
 (

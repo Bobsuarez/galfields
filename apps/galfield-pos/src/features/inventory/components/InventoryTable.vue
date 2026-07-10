@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { InventoryProduct, ProductCategory, StockStatus } from '../../../types'
+import type { Product, ProductCategory, StockStatus } from '../../../types'
 import { formatCurrency } from '../../../utils/currency'
+import { deriveStockStatus } from '../../../utils/stock'
 import AppIcon from '../../../components/shared/AppIcon.vue'
-import { deriveStatus } from '../composables/useInventory'
 
 defineProps<{
-  products: InventoryProduct[]
+  products: Product[]
   categories: ProductCategory[]
   activeCategory: string
   selectedId: string | null
@@ -19,13 +19,11 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'update:searchQuery', value: string): void
   (e: 'update:pageSize', value: number): void
-  (e: 'select', product: InventoryProduct): void
-  (e: 'delete', id: string): void
+  (e: 'select', product: Product): void
   (e: 'category', id: string): void
   (e: 'prev'): void
   (e: 'next'): void
   (e: 'page', n: number): void
-  (e: 'new'): void
 }>()
 
 const STATUS_LABEL: Record<StockStatus, string> = {
@@ -34,17 +32,23 @@ const STATUS_LABEL: Record<StockStatus, string> = {
   'sin-stock': 'Sin stock',
 }
 
-const CATEGORY_STYLE: Record<string, { bg: string; color: string }> = {
-  bebidas:   { bg: 'rgba(33,150,243,0.15)',  color: '#64B5F6' },
-  alimentos: { bg: 'rgba(76,175,80,0.15)',   color: '#81C784' },
-  snacks:    { bg: 'rgba(255,152,0,0.15)',   color: '#FFB74D' },
-  lacteos:   { bg: 'rgba(100,181,246,0.12)', color: '#90CAF9' },
-  limpieza:  { bg: 'rgba(0,188,212,0.12)',   color: '#4DD0E1' },
-  otros:     { bg: 'rgba(158,158,158,0.12)', color: '#BDBDBD' },
-}
+const CATEGORY_STYLE_PALETTE = [
+  { bg: 'rgba(33,150,243,0.15)', color: '#64B5F6' },
+  { bg: 'rgba(76,175,80,0.15)', color: '#81C784' },
+  { bg: 'rgba(255,152,0,0.15)', color: '#FFB74D' },
+  { bg: 'rgba(100,181,246,0.12)', color: '#90CAF9' },
+  { bg: 'rgba(0,188,212,0.12)', color: '#4DD0E1' },
+  { bg: 'rgba(158,158,158,0.12)', color: '#BDBDBD' },
+]
 
+// Categories are free-text from the cloud catalog now (not a fixed local
+// list), so colors are assigned deterministically by name instead of a
+// hardcoded id→style map.
 function categoryStyle(cat: string) {
-  return CATEGORY_STYLE[cat] ?? CATEGORY_STYLE.otros
+  if (!cat) return CATEGORY_STYLE_PALETTE[CATEGORY_STYLE_PALETTE.length - 1]
+  let hash = 0
+  for (let i = 0; i < cat.length; i++) hash = (hash * 31 + cat.charCodeAt(i)) | 0
+  return CATEGORY_STYLE_PALETTE[Math.abs(hash) % CATEGORY_STYLE_PALETTE.length]
 }
 
 function statusClass(status: StockStatus) {
@@ -81,20 +85,6 @@ function visiblePages(current: number, total: number): (number | '...')[] {
           class="inv-search"
         />
       </div>
-      <div class="inv-toolbar-right">
-        <button class="toolbar-btn" title="Importar">
-          <AppIcon name="refresh" :size="14" />
-          Importar
-        </button>
-        <button class="toolbar-btn" title="Filtros">
-          <AppIcon name="settings" :size="14" />
-          Filtros
-        </button>
-        <button class="toolbar-btn toolbar-btn--primary" @click="emit('new')">
-          <AppIcon name="plus" :size="14" />
-          Nuevo Producto
-        </button>
-      </div>
     </div>
 
     <div class="category-tabs">
@@ -113,14 +103,12 @@ function visiblePages(current: number, total: number): (number | '...')[] {
       <table class="inv-table">
         <thead>
           <tr>
-            <th class="col-id">#</th>
+            <th class="col-id">Código</th>
             <th class="col-name">Producto</th>
             <th class="col-cat">Categoría</th>
             <th class="col-num">Stock</th>
-            <th class="col-num">Ventas</th>
-            <th class="col-num">Stock Mín.</th>
-            <th class="col-price">Precio Venta</th>
-            <th class="col-actions">Acciones</th>
+            <th class="col-price">Precio</th>
+            <th class="col-status">Estado</th>
           </tr>
         </thead>
         <tbody>
@@ -128,41 +116,34 @@ function visiblePages(current: number, total: number): (number | '...')[] {
             v-for="product in products"
             :key="product.id"
             class="table-row"
-            :class="{ 'table-row--selected': selectedId === product.id }"
+            :class="{ 'table-row--selected': selectedId === product.id, 'table-row--inactive': !product.isActive }"
             @click="emit('select', product)"
           >
             <td class="col-id">
               <span class="barcode">{{ product.barcode }}</span>
             </td>
             <td class="col-name">
-              <span class="product-name">{{ product.name }}</span>
+              <span class="product-name">{{ product.productName }}</span>
             </td>
             <td class="col-cat">
               <span
                 class="cat-badge"
                 :style="{ background: categoryStyle(product.category).bg, color: categoryStyle(product.category).color }"
               >
-                {{ categories.find(c => c.id === product.category)?.name ?? product.category }}
+                {{ product.category || 'Sin categoría' }}
               </span>
             </td>
-            <td class="col-num">{{ product.currentStock }}</td>
-            <td class="col-num text-muted">{{ product.salesCount }}</td>
-            <td class="col-num text-muted">{{ product.minStock }}</td>
-            <td class="col-price">{{ formatCurrency(product.salePrice) }}</td>
-            <td class="col-actions" @click.stop>
-              <span class="status-badge" :class="statusClass(deriveStatus(product))">
-                {{ STATUS_LABEL[deriveStatus(product)] }}
+            <td class="col-num">{{ product.stockQuantity }}</td>
+            <td class="col-price">{{ formatCurrency(product.unitPrice) }}</td>
+            <td class="col-status">
+              <span v-if="!product.isActive" class="status-badge status--inactive">Desactivado</span>
+              <span v-else class="status-badge" :class="statusClass(deriveStockStatus(product.stockQuantity))">
+                {{ STATUS_LABEL[deriveStockStatus(product.stockQuantity)] }}
               </span>
-              <button class="action-icon" title="Editar" @click="emit('select', product)">
-                <AppIcon name="clipboard" :size="13" />
-              </button>
-              <button class="action-icon action-icon--danger" title="Eliminar" @click="emit('delete', product.id)">
-                <AppIcon name="x" :size="13" />
-              </button>
             </td>
           </tr>
           <tr v-if="products.length === 0">
-            <td colspan="8" class="empty-row">
+            <td colspan="6" class="empty-row">
               <AppIcon name="search" :size="20" />
               <span>Sin resultados</span>
             </td>
@@ -173,7 +154,7 @@ function visiblePages(current: number, total: number): (number | '...')[] {
 
     <div class="pagination">
       <span class="pagination-info">
-        Mostrando {{ (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, totalCount) }} de {{ totalCount }} productos
+        Mostrando {{ totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1 }}–{{ Math.min(currentPage * pageSize, totalCount) }} de {{ totalCount }} productos
       </span>
       <div class="pagination-controls">
         <button class="page-btn" :disabled="currentPage === 1" @click="emit('prev')">
@@ -247,39 +228,6 @@ function visiblePages(current: number, total: number): (number | '...')[] {
 
 .inv-search::placeholder { color: var(--color-text-dim); }
 
-.inv-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.toolbar-btn {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  transition: all 0.15s;
-  cursor: pointer;
-}
-
-.toolbar-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
-
-.toolbar-btn--primary {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #0D0D0D;
-  font-weight: 600;
-}
-
-.toolbar-btn--primary:hover { background: var(--color-primary-hover); color: #0D0D0D; }
-
 .category-tabs {
   display: flex;
   gap: 4px;
@@ -347,16 +295,22 @@ function visiblePages(current: number, total: number): (number | '...')[] {
 .table-row:hover { background: rgba(242, 141, 53, 0.05); }
 .table-row--selected { background: rgba(242, 141, 53, 0.1); }
 
+/* Deactivated from the cloud (mobile app) or dropped out of the last sync's
+   feed entirely - dimmed so it visually reads as "not sellable" without
+   hiding it (still needs to show up for inventory visibility/history). */
+.table-row--inactive { opacity: 0.5; }
+.table-row--inactive:hover { background: rgba(242, 141, 53, 0.03); }
+
 .inv-table td {
   padding: 9px 10px;
   vertical-align: middle;
 }
 
-.col-id { width: 72px; }
-.col-cat { width: 110px; }
+.col-id { width: 110px; }
+.col-cat { width: 130px; }
 .col-num { width: 68px; text-align: center; }
-.col-price { width: 100px; text-align: right; }
-.col-actions { width: 160px; }
+.col-price { width: 100px; text-align: right; color: var(--color-primary); font-weight: 600; }
+.col-status { width: 100px; }
 
 .barcode {
   font-size: 11px;
@@ -376,16 +330,6 @@ function visiblePages(current: number, total: number): (number | '...')[] {
   border-radius: 10px;
   font-size: 11px;
   font-weight: 500;
-}
-
-.text-muted { color: var(--color-text-muted); }
-
-.col-price { color: var(--color-primary); font-weight: 600; }
-
-.col-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .status-badge {
@@ -412,23 +356,10 @@ function visiblePages(current: number, total: number): (number | '...')[] {
   color: #EF5350;
 }
 
-.action-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-  flex-shrink: 0;
+.status--inactive {
+  background: rgba(158, 158, 158, 0.2);
+  color: #BDBDBD;
 }
-
-.action-icon:hover { border-color: var(--color-primary); color: var(--color-primary); }
-.action-icon--danger:hover { border-color: var(--color-danger); color: var(--color-danger); }
 
 .empty-row {
   text-align: center;

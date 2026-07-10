@@ -107,6 +107,13 @@ async function browseInvoiceFolder() {
         </div>
       </div>
       <div class="field">
+        <label class="field-label">Reintentar ventas pendientes cada</label>
+        <div class="field-suffix-wrap">
+          <input v-model.number="settings.sync.salesRetryMinutes" type="number" min="1" max="60" class="field-input" />
+          <span class="field-suffix">minutos</span>
+        </div>
+      </div>
+      <div class="field">
         <label class="field-label">Prefijo de Facturas</label>
         <input v-model="settings.sync.invoicePrefix" class="field-input" placeholder="FAC-" />
       </div>

@@ -1,49 +1,74 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useProductSync } from './composables/useProductSync'
+import { useToast } from '../../composables/useToast'
+import AppIcon from '../../components/shared/AppIcon.vue'
 
 const router = useRouter()
-const progress = ref(0)
-const step = ref('Conectando...')
+const { syncing, error, lastSummary, runSync } = useProductSync()
+const { show: showToast } = useToast()
 
-const steps = [
-  { label: 'Conectando...', value: 20 },
-  { label: 'Descargando datos...', value: 50 },
-  { label: 'Cargando catálogo...', value: 75 },
-  { label: 'Finalizando...', value: 100 },
-]
-
-onMounted(async () => {
-  for (const s of steps) {
-    await new Promise(r => setTimeout(r, 700))
-    step.value = s.label
-    progress.value = s.value
+async function handleSync() {
+  await runSync()
+  if (error.value) {
+    showToast(error.value, 'error', 5000)
+  } else if (lastSummary.value) {
+    showToast(`${lastSummary.value.variantsSynced} productos sincronizados`, 'success')
   }
-  await new Promise(r => setTimeout(r, 500))
-  router.push('/pos')
-})
+}
 </script>
 
 <template>
   <div class="sync-view">
     <div class="sync-mascot">🐱</div>
-    <h1 class="sync-title">¡Hola! Preparando tu punto de venta</h1>
-    <p class="sync-subtitle">Cargando información, esto puede tardar unos segundos...</p>
+    <h1 class="sync-title">Sincronización de catálogo</h1>
+    <p class="sync-subtitle">
+      Descarga el catálogo de productos más reciente desde la nube cuando lo necesites.
+    </p>
 
-    <div class="sync-bar-wrap">
+    <!-- Idle: nothing synced yet this session -->
+    <button v-if="!syncing && !lastSummary && !error" class="sync-btn" @click="handleSync">
+      <AppIcon name="refresh" :size="18" />
+      Sincronizar catálogo
+    </button>
+
+    <!-- Syncing -->
+    <div v-else-if="syncing" class="sync-progress">
       <div class="sync-bar">
-        <div class="sync-bar-fill" :style="{ width: progress + '%' }" />
+        <div class="sync-bar-fill" />
       </div>
-      <span class="sync-percent">{{ progress }}%</span>
+      <p class="sync-step">Descargando catálogo desde el servidor...</p>
     </div>
 
-    <p class="sync-step">{{ step }}</p>
-
-    <div class="sync-steps">
-      <div v-for="s in steps" :key="s.value" class="sync-step-dot" :class="{ done: progress >= s.value }">
-        <div class="dot" />
-        <span>{{ s.label.replace('...', '') }}</span>
+    <!-- Success -->
+    <div v-else-if="lastSummary" class="sync-result sync-result--success">
+      <AppIcon name="check" :size="28" />
+      <p class="sync-result-text">
+        {{ lastSummary.variantsSynced }} productos sincronizados
+        <span class="sync-result-sub">
+          ({{ lastSummary.productsFetched }} productos del catálogo)
+          <template v-if="lastSummary.productsDeactivated > 0">
+            · {{ lastSummary.productsDeactivated }} desactivados (ya no están en el catálogo)
+          </template>
+        </span>
+      </p>
+      <div class="sync-actions">
+        <button class="sync-btn sync-btn--ghost" @click="handleSync">
+          <AppIcon name="refresh" :size="16" />
+          Sincronizar de nuevo
+        </button>
+        <button class="sync-btn" @click="router.push('/pos')">Ir a Ventas</button>
       </div>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="sync-result sync-result--error">
+      <AppIcon name="alert-triangle" :size="28" />
+      <p class="sync-result-text">{{ error }}</p>
+      <button class="sync-btn" @click="handleSync">
+        <AppIcon name="refresh" :size="16" />
+        Reintentar
+      </button>
     </div>
   </div>
 </template>
@@ -58,6 +83,7 @@ onMounted(async () => {
   gap: 16px;
   background: var(--color-surface);
   padding: 40px;
+  text-align: center;
 }
 
 .sync-mascot {
@@ -75,25 +101,50 @@ onMounted(async () => {
   font-size: 22px;
   font-weight: 700;
   color: var(--color-cream);
-  text-align: center;
 }
 
 .sync-subtitle {
   font-size: 13px;
   color: var(--color-text-muted);
-  text-align: center;
+  max-width: 380px;
 }
 
-.sync-bar-wrap {
+.sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.sync-btn:hover { opacity: 0.9; }
+.sync-btn:active { transform: scale(0.97); }
+
+.sync-btn--ghost {
+  background: transparent;
+  border: 1.5px solid var(--color-primary);
+  color: var(--color-primary);
+}
+
+.sync-progress {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
   width: 100%;
-  max-width: 440px;
+  max-width: 380px;
 }
 
 .sync-bar {
-  flex: 1;
+  width: 100%;
   height: 8px;
   background: var(--color-surface-3);
   border-radius: 4px;
@@ -102,16 +153,15 @@ onMounted(async () => {
 
 .sync-bar-fill {
   height: 100%;
+  width: 40%;
   background: var(--color-primary);
   border-radius: 4px;
-  transition: width 0.5s ease;
+  animation: sync-indeterminate 1.1s ease-in-out infinite;
 }
 
-.sync-percent {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-primary);
-  min-width: 36px;
+@keyframes sync-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
 }
 
 .sync-step {
@@ -120,36 +170,34 @@ onMounted(async () => {
   font-style: italic;
 }
 
-.sync-steps {
-  display: flex;
-  gap: 24px;
-  margin-top: 8px;
-}
-
-.sync-step-dot {
+.sync-result {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  color: var(--color-text-dim);
-  font-size: 11px;
-  transition: color 0.3s;
+  gap: 10px;
+  margin-top: 4px;
 }
 
-.sync-step-dot.done {
-  color: var(--color-primary);
+.sync-result--success { color: #7ee87e; }
+.sync-result--error { color: #f07070; }
+
+.sync-result-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-cream);
 }
 
-.dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--color-surface-3);
-  border: 2px solid currentColor;
-  transition: background 0.3s;
+.sync-result-sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin-top: 2px;
 }
 
-.sync-step-dot.done .dot {
-  background: var(--color-primary);
+.sync-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
 }
 </style>

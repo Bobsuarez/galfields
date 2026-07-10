@@ -6,7 +6,9 @@ mod peripheral_manager;
 mod peripherals;
 mod products;
 mod reports;
+mod sales_sync;
 mod settings;
+mod sync;
 
 use std::collections::HashMap;
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
@@ -53,6 +55,8 @@ pub fn run() {
                 port_locks: Mutex::new(HashMap::new()),
             });
 
+            sales_sync::spawn_background_retry_loop(app.handle().clone());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -69,12 +73,15 @@ pub fn run() {
             reports::get_top_products,
             reports::get_financial_summary,
             products::get_low_stock_products,
+            products::get_products,
             peripheral_manager::start_peripheral_listener,
             peripheral_manager::stop_peripheral_listener,
             invoices::create_sale,
             invoices::trigger_print_invoice,
             invoices::trigger_open_cash_drawer,
             invoices::save_invoice_pdf,
+            sync::sync_products,
+            sales_sync::push_pending_sales,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

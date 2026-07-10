@@ -6,7 +6,7 @@ import AppIcon from '../../../components/shared/AppIcon.vue'
 
 const emit = defineEmits<{ (e: 'product-added', product: Product): void }>()
 
-const { categories, activeCategory, searchQuery, filteredProducts, selectCategory } = useProductCatalog()
+const { categories, activeCategory, searchQuery, filteredProducts, isLoading, selectCategory } = useProductCatalog()
 </script>
 
 <template>
@@ -37,16 +37,28 @@ const { categories, activeCategory, searchQuery, filteredProducts, selectCategor
     </div>
 
     <div class="product-grid">
-      <ProductCard
-        v-for="product in filteredProducts"
-        :key="product.id"
-        :product="product"
-        @add="emit('product-added', $event)"
-      />
-      <div v-if="filteredProducts.length === 0" class="empty-state">
-        <span style="font-size: 32px">🔍</span>
-        <p>Sin resultados para "{{ searchQuery }}"</p>
-      </div>
+      <template v-if="isLoading">
+        <div class="empty-state">
+          <span style="font-size: 32px">⏳</span>
+          <p>Cargando catálogo...</p>
+        </div>
+      </template>
+      <template v-else>
+        <ProductCard
+          v-for="product in filteredProducts"
+          :key="product.id"
+          :product="product"
+          @add="emit('product-added', $event)"
+        />
+        <div v-if="filteredProducts.length === 0 && searchQuery" class="empty-state">
+          <span style="font-size: 32px">🔍</span>
+          <p>Sin resultados para "{{ searchQuery }}"</p>
+        </div>
+        <div v-else-if="filteredProducts.length === 0" class="empty-state">
+          <span style="font-size: 32px">📦</span>
+          <p>Aún no hay productos sincronizados. Ve a Sincronización para descargar el catálogo.</p>
+        </div>
+      </template>
     </div>
   </section>
 </template>
@@ -146,12 +158,16 @@ const { categories, activeCategory, searchQuery, filteredProducts, selectCategor
   font-weight: 600;
 }
 
+/* Fixed-size columns (matching ProductCard's own fixed width) instead of
+   `1fr` — cards keep a constant size as the window resizes, wrapping into
+   more/fewer columns rather than stretching. */
 .product-grid {
   flex: 1;
   overflow-y: auto;
   padding: 0 16px 16px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, 176px);
+  justify-content: start;
   gap: 10px;
   align-content: start;
 }
