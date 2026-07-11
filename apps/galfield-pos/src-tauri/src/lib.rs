@@ -1,3 +1,4 @@
+mod catalog_sync;
 mod db;
 mod invoices;
 mod payment_methods;
@@ -82,6 +83,8 @@ pub fn run() {
             invoices::save_invoice_pdf,
             sync::sync_products,
             sales_sync::push_pending_sales,
+            catalog_sync::sync_categories,
+            catalog_sync::sync_payment_methods,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

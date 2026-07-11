@@ -6,17 +6,13 @@ import co.com.galfields.pos.dto.ProductVariantRequest;
 import co.com.galfields.pos.service.ProductService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
@@ -32,6 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * A product and its variants are created/updated in a single multipart call:
@@ -60,7 +62,8 @@ public class ProductController {
             "createdAt", "createdAt",
             "updatedAt", "updatedAt",
             "categoryName", "category.name",
-            "brandName", "brand.name");
+            "brandName", "brand.name"
+    );
 
     private final ProductService productService;
 
@@ -69,16 +72,18 @@ public class ProductController {
     public ProductResponse create(
             @RequestPart("product") @Valid ProductRequest product,
             @RequestPart(value = "image", required = false) MultipartFile image,
-            @RequestPart("variants") @NotEmpty @Valid List<ProductVariantRequest> variants,
+            @RequestPart("variants") @NotEmpty List<@Valid ProductVariantRequest> variants,
             MultipartHttpServletRequest request
     ) {
         return productService.createProduct(product, image, variants, extractVariantImages(request));
     }
 
     @GetMapping
-    public Page<ProductResponse> list(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return productService.listProducts(remapSort(pageable));
+    public PagedModel<ProductResponse> list(
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<ProductResponse> page =  productService.listProducts(remapSort(pageable));
+        return new PagedModel<>(page);
     }
 
     @GetMapping("/{productId}")
@@ -91,8 +96,9 @@ public class ProductController {
             @PathVariable Long productId,
             @RequestPart("product") @Valid ProductRequest product,
             @RequestPart(value = "image", required = false) MultipartFile image,
-            @RequestPart(value = "variants", required = false) @Valid List<ProductVariantRequest> variants,
-            MultipartHttpServletRequest request) {
+            @RequestPart(value = "variants", required = false) List<@Valid ProductVariantRequest> variants,
+            MultipartHttpServletRequest request
+    ) {
         return productService.updateProduct(productId, product, image, variants, extractVariantImages(request));
     }
 
@@ -103,12 +109,15 @@ public class ProductController {
     }
 
     private Pageable remapSort(Pageable pageable) {
-        List<Sort.Order> orders = pageable.getSort().stream()
+        List<Sort.Order> orders = pageable.getSort()
+                .stream()
                 .map(order -> {
                     String jpaProperty = SORTABLE_PROPERTIES.get(order.getProperty());
                     if (jpaProperty == null) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                "Cannot sort by '" + order.getProperty() + "'. Allowed: " + SORTABLE_PROPERTIES.keySet());
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST,
+                                "Cannot sort by '" + order.getProperty() + "'. Allowed: " + SORTABLE_PROPERTIES.keySet()
+                        );
                     }
                     return new Sort.Order(order.getDirection(), jpaProperty);
                 })
@@ -118,12 +127,13 @@ public class ProductController {
 
     private Map<Integer, MultipartFile> extractVariantImages(MultipartHttpServletRequest request) {
         Map<Integer, MultipartFile> variantImages = new HashMap<>();
-        request.getFileMap().forEach((partName, file) -> {
-            Matcher matcher = VARIANT_IMAGE_PART_NAME.matcher(partName);
-            if (matcher.matches()) {
-                variantImages.put(Integer.parseInt(matcher.group(1)), file);
-            }
-        });
+        request.getFileMap()
+                .forEach((partName, file) -> {
+                    Matcher matcher = VARIANT_IMAGE_PART_NAME.matcher(partName);
+                    if (matcher.matches()) {
+                        variantImages.put(Integer.parseInt(matcher.group(1)), file);
+                    }
+                });
         return variantImages;
     }
 }

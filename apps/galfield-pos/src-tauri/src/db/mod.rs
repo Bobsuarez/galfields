@@ -44,6 +44,7 @@ impl Database {
         self.apply_migration("002_payment_methods", include_str!("../../migrations/002_payment_methods.sql"))?;
         self.apply_migration("003_product_remote_link", include_str!("../../migrations/003_product_remote_link.sql"))?;
         self.apply_migration("004_sales_sync", include_str!("../../migrations/004_sales_sync.sql"))?;
+        self.apply_migration("005_payment_method_active", include_str!("../../migrations/005_payment_method_active.sql"))?;
         Ok(())
     }
 
