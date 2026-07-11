@@ -4,7 +4,6 @@ import co.com.galfields.pos.dto.CategoryRequest;
 import co.com.galfields.pos.dto.CategoryResponse;
 import co.com.galfields.pos.service.CategoryService;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/categories")
@@ -41,7 +42,10 @@ public class CategoryController {
     }
 
     @PutMapping("/{categoryId}")
-    public CategoryResponse update(@PathVariable Long categoryId, @RequestBody @Valid CategoryRequest request) {
+    public CategoryResponse update(
+            @PathVariable Long categoryId,
+            @RequestBody @Valid CategoryRequest request
+    ) {
         return categoryService.updateCategory(categoryId, request);
     }
 

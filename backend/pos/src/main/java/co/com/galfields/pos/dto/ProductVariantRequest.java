@@ -13,5 +13,5 @@ public record ProductVariantRequest(
         @NotNull @PositiveOrZero BigDecimal price,
         @NotNull @PositiveOrZero BigDecimal costPrice,
         @PositiveOrZero Integer initialStock,
-        @Valid List<VariantAttributeRequest> attributes) {
+        List<@Valid VariantAttributeRequest> attributes) {
 }

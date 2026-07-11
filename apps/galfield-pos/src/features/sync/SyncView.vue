@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { useProductSync } from './composables/useProductSync'
+import { CATALOG_SYNC_STEP_LABELS, useCatalogSync } from './composables/useCatalogSync'
 import { useToast } from '../../composables/useToast'
 import AppIcon from '../../components/shared/AppIcon.vue'
 
 const router = useRouter()
-const { syncing, error, lastSummary, runSync } = useProductSync()
+const { syncing, currentStep, error, summary, runSync } = useCatalogSync()
 const { show: showToast } = useToast()
 
 async function handleSync() {
   await runSync()
   if (error.value) {
     showToast(error.value, 'error', 5000)
-  } else if (lastSummary.value) {
-    showToast(`${lastSummary.value.variantsSynced} productos sincronizados`, 'success')
+  } else if (summary.value) {
+    showToast(
+      `${summary.value.variantsSynced} productos, ${summary.value.categoriesSynced} categorías y ${summary.value.paymentMethodsSynced} métodos de pago sincronizados`,
+      'success',
+    )
   }
 }
 </script>
@@ -23,11 +26,11 @@ async function handleSync() {
     <div class="sync-mascot">🐱</div>
     <h1 class="sync-title">Sincronización de catálogo</h1>
     <p class="sync-subtitle">
-      Descarga el catálogo de productos más reciente desde la nube cuando lo necesites.
+      Descarga el catálogo de productos, categorías y métodos de pago más recientes desde la nube cuando lo necesites.
     </p>
 
     <!-- Idle: nothing synced yet this session -->
-    <button v-if="!syncing && !lastSummary && !error" class="sync-btn" @click="handleSync">
+    <button v-if="!syncing && !summary && !error" class="sync-btn" @click="handleSync">
       <AppIcon name="refresh" :size="18" />
       Sincronizar catálogo
     </button>
@@ -37,19 +40,28 @@ async function handleSync() {
       <div class="sync-bar">
         <div class="sync-bar-fill" />
       </div>
-      <p class="sync-step">Descargando catálogo desde el servidor...</p>
+      <p class="sync-step">{{ currentStep ? CATALOG_SYNC_STEP_LABELS[currentStep] : '' }}</p>
     </div>
 
     <!-- Success -->
-    <div v-else-if="lastSummary" class="sync-result sync-result--success">
+    <div v-else-if="summary" class="sync-result sync-result--success">
       <AppIcon name="check" :size="28" />
       <p class="sync-result-text">
-        {{ lastSummary.variantsSynced }} productos sincronizados
+        {{ summary.variantsSynced }} productos sincronizados
         <span class="sync-result-sub">
-          ({{ lastSummary.productsFetched }} productos del catálogo)
-          <template v-if="lastSummary.productsDeactivated > 0">
-            · {{ lastSummary.productsDeactivated }} desactivados (ya no están en el catálogo)
+          ({{ summary.productsFetched }} productos del catálogo)
+          <template v-if="summary.productsDeactivated > 0">
+            · {{ summary.productsDeactivated }} desactivados (ya no están en el catálogo)
           </template>
+        </span>
+      </p>
+      <p class="sync-result-text">
+        {{ summary.categoriesSynced }} categorías sincronizadas
+      </p>
+      <p class="sync-result-text">
+        {{ summary.paymentMethodsSynced }} métodos de pago sincronizados
+        <span v-if="summary.paymentMethodsDeactivated > 0" class="sync-result-sub">
+          ({{ summary.paymentMethodsDeactivated }} desactivados)
         </span>
       </p>
       <div class="sync-actions">

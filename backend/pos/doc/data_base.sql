@@ -53,6 +53,7 @@ CREATE TABLE payment_methods
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
 CREATE TABLE attach_files
 (
     attach_files_id BIGSERIAL PRIMARY KEY,
@@ -61,6 +62,16 @@ CREATE TABLE attach_files
     mime_type       varchar(100) NOT NULL,
     size            INT          NOT NULL,
     create_at       timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Imagen de un método de pago (1:1). Debe ir después de attach_files, ya
+-- que la referencia FK requiere que esa tabla exista primero.
+CREATE TABLE payment_methods_images
+(
+    id               BIGSERIAL PRIMARY KEY,
+    payment_methods  BIGINT UNIQUE NOT NULL REFERENCES payment_methods (payment_method_id),
+    image_product    BIGINT        NOT NULL REFERENCES attach_files (attach_files_id),
+    create_at        timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
 

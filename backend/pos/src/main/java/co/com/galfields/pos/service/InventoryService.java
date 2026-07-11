@@ -39,7 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class InventoryService {
 
-    private static final String DEFAULT_LOCATION_NAME = "Bodega Principal";
+    private static final String DEFAULT_LOCATION_NAME = "Bogotá - Chapinero";
 
     private final ProductVariantRepository productVariantRepository;
     private final LocationRepository locationRepository;

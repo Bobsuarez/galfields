@@ -1,7 +1,6 @@
-import * as FileSystem from 'expo-file-system/legacy';
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
-import { guessImageMimeType, imageFileName } from '@/utils/image-mime';
+import { appendImagePart, jsonPart } from '@/utils/multipart-form';
 import type { ProductInput } from '@/types/product';
 
 export interface RemoteVariantAttribute {
@@ -63,29 +62,6 @@ export async function fetchProducts(page = 0, size = 20): Promise<ProductsPage> 
     `[products-api] GET /api/products -> ${response.status} (page ${result.number + 1}/${result.totalPages}, ${result.content.length} items)`,
   );
   return result;
-}
-
-/**
- * React Native's `Blob` polyfill isn't reliable for in-memory JSON parts
- * (the multipart body it produces can arrive empty/malformed on-device even
- * though the exact same `Blob`+`FormData` code works fine under a
- * spec-compliant fetch implementation) — write the JSON to a temp file
- * instead and attach it the same proven way images already are, as a
- * `{ uri, name, type }` file part.
- */
-async function jsonPart(fieldName: string, value: unknown): Promise<{ uri: string; name: string; type: string }> {
-  const path = `${FileSystem.cacheDirectory}${fieldName}_${Date.now()}.json`;
-  await FileSystem.writeAsStringAsync(path, JSON.stringify(value));
-  return { uri: path, name: `${fieldName}.json`, type: 'application/json' };
-}
-
-function appendImagePart(formData: FormData, fieldName: string, uri: string): void {
-  const mimeType = guessImageMimeType(uri);
-  formData.append(fieldName, {
-    uri,
-    name: imageFileName(fieldName, mimeType),
-    type: mimeType,
-  } as unknown as Blob);
 }
 
 /**

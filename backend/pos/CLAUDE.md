@@ -8,7 +8,7 @@ Spring Boot 4.1.0 backend for a POS (point of sale) system, part of the larger G
 
 Base package: `co.com.galfields.pos`. Entry point: `src/main/java/co/com/galfields/pos/PosApplication.java`.
 
-The project follows conventional Spring Boot layering (`controller` / `service` / `repository` / `entity` / `dto` / `exception` / `config` packages under `co.com.galfields.pos`). Entities cover the full POS domain (products, variants, inventory, sales, purchase orders, employees, customers, suppliers); only the products/categories slice currently has controllers and services wired up.
+The project follows conventional Spring Boot layering (`controller` / `service` / `repository` / `entity` / `dto` / `exception` / `config` packages under `co.com.galfields.pos`). Entities cover the full POS domain (products, variants, inventory, sales, purchase orders, employees, customers, suppliers); only the products/categories/brands/locations/payment-methods/inventory slice currently has controllers and services wired up.
 
 ## Keeping this file in sync
 
@@ -74,17 +74,22 @@ On update, variants are upserted by `sku` against the product's existing variant
 
 `GET /api/products` takes standard Spring `Pageable` params (`page`, `size`, `sort`), defaulting to `sort=createdAt,desc`. **Don't pass the raw client-supplied `Sort` straight to the repository** — `findByActiveTrue(Pageable)` queries the `Product` entity directly, so a sort property that isn't an actual JPA path on `Product` (e.g. `price`, `sku`, `stock` - those live on `ProductVariant`, one level down) blows up with `InvalidDataAccessApiUsageException` (500) instead of a clean error. `ProductController` remaps every requested sort key through the `SORTABLE_PROPERTIES` whitelist (`productId`, `name`, `active`, `createdAt`, `updatedAt`, `categoryName` → `category.name`, `brandName` → `brand.name`) before building the `Pageable`, and rejects anything else with a 400. Add a new sortable column here (not in the repository) if the API needs one.
 
-## Category / Brand / Location CRUD endpoints
+## Category / Brand / Location / Payment Method CRUD endpoints
 
-`/api/categories`, `/api/brands`, and `/api/locations` are plain CRUDs (`*Controller` → `*Service` → `*Repository`), same shape as each other:
+`/api/categories`, `/api/brands`, `/api/locations`, and `/api/payment-methods` are CRUDs (`*Controller` → `*Service` → `*Repository`). The first three take a plain JSON body; `/api/payment-methods` is multipart because it also carries an optional image (see below) — otherwise all four share the same shape:
 
 - `/api/categories`: `POST`/`PUT` take `{ name, description }` (`name` required); `categories` has a `description` column.
 - `/api/brands`: `POST`/`PUT` take `{ name }` only (`name` required) — `brands` has **no** `description` column (see `doc/data_base.sql`), don't add one to `BrandRequest`/`BrandResponse` without a matching migration first.
 - `/api/locations`: `POST`/`PUT` take `{ name, address, phone }` (`name` required, `address`/`phone` optional).
+- `/api/payment-methods`: `POST`/`PUT` are `multipart/form-data` — a `paymentMethod` JSON part `{ methodName, active }` (both required) plus an optional `image` file part, same two-part shape as `/api/products`. Unlike the other three, `payment_methods` *does* have an `is_active` column, so `active` is a plain required field on the request/response instead of a separate deactivate endpoint like products use.
 
-All three: `GET` lists all or fetches by id, `DELETE` hard-deletes (none of these tables have an `is_active`/soft-delete column, unlike products). None of `categories.name` / `brands.name` / `locations.name` has a `UNIQUE` constraint in the DB, so duplicate names are allowed on purpose (no app-level uniqueness check).
+All four: `GET` lists all or fetches by id, `DELETE` hard-deletes (none of `categories`/`brands`/`locations` have an `is_active`/soft-delete column, unlike products; `payment_methods` has one but `DELETE` still hard-deletes rather than flipping it). None of `categories.name` / `brands.name` / `locations.name` / `payment_methods.method_name` has a `UNIQUE` constraint in the DB, so duplicate names are allowed on purpose (no app-level uniqueness check).
 
-Deleting a row still referenced by a product/inventory/sale (FK, no `ON DELETE` clause → default `RESTRICT`) returns a clean 409 instead of a raw 500: `GlobalExceptionHandler` catches `DataIntegrityViolationException` generically, so this covers any FK-constrained delete across all three, and any future one.
+Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON DELETE` clause → default `RESTRICT`) returns a clean 409 instead of a raw 500: `GlobalExceptionHandler` catches `DataIntegrityViolationException` generically, so this covers any FK-constrained delete across all four, and any future one.
+
+### Payment method image
+
+`payment_methods_images` (migration `V3__payment_methods_images.sql`) is a 1:1 join to `attach_files`, same pattern as `product_images`/`product_variants_images` — `PaymentMethod.image` is a `@OneToOne(mappedBy = "paymentMethod", cascade = ALL, orphanRemoval = true)`. `MinioService#uploadPaymentMethodImage` uploads under the object key prefix `files/payment_method/<method-name-slug>/<uuid>.ext` (singular `payment_method`, unlike the pluralized product paths). `PaymentMethodService` mirrors `ProductService`'s image flow: on create/update, an uploaded `image` replaces any existing one (old MinIO object deleted after the new one is attached); unlike products, `/api/payment-methods` hard-deletes, so `deletePaymentMethod` also explicitly deletes the MinIO object and the `attach_files` row for the image (products never do this since they're soft-deleted and never reach this code path).
 
 **Indispensable:** `ProductService` hard-codes the location named `Bodega Principal` (`DEFAULT_LOCATION_NAME`) as the inventory location for every product/variant created or updated through `/api/products` — it's not configurable yet. Renaming or deleting that location breaks product creation/stock updates (`ResourceNotFoundException` on create; deletion is blocked by the FK-conflict 409 once any inventory row references it, but renaming it isn't blocked by anything). If you need a different default location, update `ProductService.DEFAULT_LOCATION_NAME` too, don't just change the row via `/api/locations`.
 

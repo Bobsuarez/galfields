@@ -24,6 +24,12 @@ const SETTINGS_ITEMS = [
     subtitle: 'Gestionar bodegas y puntos de venta',
     href: '/settings/locations' as const,
   },
+  {
+    icon: 'creditcard.fill',
+    label: 'Métodos de pago',
+    subtitle: 'Gestionar métodos de pago disponibles',
+    href: '/settings/payment-methods' as const,
+  },
 ] as const;
 
 export default function SettingsScreen() {

@@ -52,6 +52,7 @@ const MAPPING = {
   'tag.fill': 'sell',
   'building.2.fill': 'store',
   'mappin.and.ellipse': 'location-on',
+  'creditcard.fill': 'credit-card',
 } as IconMapping;
 
 /**

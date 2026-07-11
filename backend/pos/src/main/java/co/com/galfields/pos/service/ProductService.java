@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ProductService {
 
-    private static final String DEFAULT_LOCATION_NAME = "Bodega Principal";
+    private static final String DEFAULT_LOCATION_NAME = "Bogotá - Chapinero";
 
     private final ProductRepository productRepository;
     private final ProductVariantRepository productVariantRepository;
