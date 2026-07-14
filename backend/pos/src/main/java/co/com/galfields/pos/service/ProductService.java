@@ -112,10 +112,11 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public Page<ProductResponse> listProducts(Pageable pageable) {
-        
-        return productRepository.findByActiveTrue(pageable)
-                .map(this::toResponse);
+    public Page<ProductResponse> listProducts(Pageable pageable, boolean includeInactive) {
+        Page<Product> page = includeInactive
+                ? productRepository.findAll(pageable)
+                : productRepository.findByActiveTrue(pageable);
+        return page.map(this::toResponse);
     }
 
     @Transactional
@@ -169,6 +170,18 @@ public class ProductService {
         product.getVariants()
                 .forEach(v -> v.setActive(false));
         productRepository.save(product);
+    }
+
+    /** Counterpart to {@link #deleteProduct} — flips the product and every
+     * one of its variants back to active. */
+    @Transactional
+    public ProductResponse activateProduct(Long productId) {
+        Product product = findProductOrThrow(productId);
+        product.setActive(true);
+        product.getVariants()
+                .forEach(v -> v.setActive(true));
+        product = productRepository.save(product);
+        return toResponse(product);
     }
 
     private Product findProductOrThrow(Long productId) {

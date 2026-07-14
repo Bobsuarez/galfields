@@ -74,6 +74,12 @@ On update, variants are upserted by `sku` against the product's existing variant
 
 `GET /api/products` takes standard Spring `Pageable` params (`page`, `size`, `sort`), defaulting to `sort=createdAt,desc`. **Don't pass the raw client-supplied `Sort` straight to the repository** — `findByActiveTrue(Pageable)` queries the `Product` entity directly, so a sort property that isn't an actual JPA path on `Product` (e.g. `price`, `sku`, `stock` - those live on `ProductVariant`, one level down) blows up with `InvalidDataAccessApiUsageException` (500) instead of a clean error. `ProductController` remaps every requested sort key through the `SORTABLE_PROPERTIES` whitelist (`productId`, `name`, `active`, `createdAt`, `updatedAt`, `categoryName` → `category.name`, `brandName` → `brand.name`) before building the `Pageable`, and rejects anything else with a 400. Add a new sortable column here (not in the repository) if the API needs one.
 
+`?includeInactive=true` (default `false`) switches the query from `findByActiveTrue` to a plain `findAll`, so deactivated products (and their variants) show up too — the regular catalog view (mobile's Products screen) omits it on purpose (selling screen shouldn't offer a deactivated product), but the mobile Inventario module (see `apps/galfields-mobile`'s CLAUDE.md) needs to see and reactivate them, so it always passes `includeInactive=true`.
+
+### Activate/deactivate
+
+`DELETE /api/products/{productId}` is a **soft** delete (`ProductService#deleteProduct`): flips `products.is_active` and every one of its variants' `is_active` to `false`, never removes rows. `PUT /api/products/{productId}/activate` (`ProductService#activateProduct`) is the counterpart — flips both back to `true`. Both cascade product → all its variants together; there's no independent per-variant active toggle exposed anywhere (matches how deactivation always worked before `activate` existed). Reactivating an already-active product (or deactivating an already-inactive one) is a harmless no-op, not an error.
+
 ## Category / Brand / Location / Payment Method CRUD endpoints
 
 `/api/categories`, `/api/brands`, `/api/locations`, and `/api/payment-methods` are CRUDs (`*Controller` → `*Service` → `*Repository`). The first three take a plain JSON body; `/api/payment-methods` is multipart because it also carries an optional image (see below) — otherwise all four share the same shape:
