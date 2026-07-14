@@ -41,6 +41,12 @@ const MENU_ITEMS = [
     href: null,
   },
   {
+    icon: 'chart.pie.fill',
+    label: 'Reportes',
+    subtitle: 'Ventas, caja\ne inventario',
+    href: '/reports' as const,
+  },
+  {
     icon: 'gearshape.fill',
     label: 'Configuración',
     subtitle: 'Ajustes de la\naplicación',

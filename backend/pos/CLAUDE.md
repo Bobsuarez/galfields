@@ -55,7 +55,7 @@ Notable shapes to remember when writing entities/queries against this schema:
 - Images are not stored as a plain string column on `products`/`product_variants`. There's a generic `attach_files` table (name/url/mime_type/size), joined via the 1:1 tables `product_images` and `product_variants_images`, and referenced directly from `employees.logo_image`.
 - `product_variants` has no `attribute_name`/`attribute_value` columns — those live in the separate `variant_attributes` table (one variant can have many attributes, e.g. color + size), unique per `(variant_id, attribute_name)`.
 - **Gotcha:** several FK columns are declared `BIGSERIAL` in `doc/data_base.sql` instead of plain `BIGINT` (`products.category_id`/`brand_id`, `employees.role_id`/`logo_image`, `sales_transactions.customer_id`). Postgres makes `SERIAL`/`BIGSERIAL` columns `NOT NULL` unconditionally, so these are mandatory in the live DB even where the design clearly intended them optional (e.g. a sale with no customer, an employee with no logo). `ProductRequest.categoryId`/`brandId` are `@NotNull` to match this reality. If you touch employees/sales code, check the actual `\d <table>` output before assuming a FK is nullable — don't trust the DDL's absence of `NOT NULL`. Fixing this upstream (swap to `BIGINT`) requires a coordinated migration, not just an entity change.
-- **Local dev seed gap:** `locations` and `brands` ship empty in a fresh local DB (the old `V2__seed_categories_and_default_location.sql` was dropped when Flyway was baselined). `ProductService` hard-depends on a location named `Bodega Principal` existing — product creation throws `ResourceNotFoundException` until you insert one (and at least one brand, since it's now required too).
+- **Local dev seed gap:** `locations` and `brands` ship empty in a fresh local DB (the old `V2__seed_categories_and_default_location.sql` was dropped when Flyway was baselined). `ProductService` hard-depends on a location named `Bogotá - Chapinero` existing — product creation throws `ResourceNotFoundException` until you insert one (and at least one brand, since it's now required too).
 
 ## Product creation/update endpoint
 
@@ -91,7 +91,7 @@ Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON 
 
 `payment_methods_images` (migration `V3__payment_methods_images.sql`) is a 1:1 join to `attach_files`, same pattern as `product_images`/`product_variants_images` — `PaymentMethod.image` is a `@OneToOne(mappedBy = "paymentMethod", cascade = ALL, orphanRemoval = true)`. `MinioService#uploadPaymentMethodImage` uploads under the object key prefix `files/payment_method/<method-name-slug>/<uuid>.ext` (singular `payment_method`, unlike the pluralized product paths). `PaymentMethodService` mirrors `ProductService`'s image flow: on create/update, an uploaded `image` replaces any existing one (old MinIO object deleted after the new one is attached); unlike products, `/api/payment-methods` hard-deletes, so `deletePaymentMethod` also explicitly deletes the MinIO object and the `attach_files` row for the image (products never do this since they're soft-deleted and never reach this code path).
 
-**Indispensable:** `ProductService` hard-codes the location named `Bodega Principal` (`DEFAULT_LOCATION_NAME`) as the inventory location for every product/variant created or updated through `/api/products` — it's not configurable yet. Renaming or deleting that location breaks product creation/stock updates (`ResourceNotFoundException` on create; deletion is blocked by the FK-conflict 409 once any inventory row references it, but renaming it isn't blocked by anything). If you need a different default location, update `ProductService.DEFAULT_LOCATION_NAME` too, don't just change the row via `/api/locations`.
+**Indispensable:** `ProductService` hard-codes the location named `Bogotá - Chapinero` (`DEFAULT_LOCATION_NAME`) as the inventory location for every product/variant created or updated through `/api/products` — it's not configurable yet. Renaming or deleting that location breaks product creation/stock updates (`ResourceNotFoundException` on create; deletion is blocked by the FK-conflict 409 once any inventory row references it, but renaming it isn't blocked by anything). If you need a different default location, update `ProductService.DEFAULT_LOCATION_NAME` too, don't just change the row via `/api/locations`.
 
 ## Inventory adjustment endpoint (`POST /api/inventory/adjustments`)
 
@@ -108,10 +108,46 @@ Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON 
 ```
 
 - **Idempotent per `(clientEventId, variantId)`** — `stock_adjustments` (migration `V2__stock_adjustments.sql`) has a `UNIQUE (client_event_id, variant_id)` constraint backing `existsByClientEventIdAndVariant_VariantId`. A retried batch (client applied it locally but never saw the response, or only part of a previous batch succeeded before a crash) replays `alreadyProcessed: true` per already-seen item instead of double-applying — safe to retry the exact same request any number of times.
-- **Scoped to `DEFAULT_LOCATION_NAME`** ("Bodega Principal"), same as every other inventory write in this codebase — there's no per-request location, and no multi-location support yet (see the indispensable note above).
+- **Scoped to `DEFAULT_LOCATION_NAME`** ("Bogotá - Chapinero"), same as every other inventory write in this codebase — there's no per-request location, and no multi-location support yet (see the indispensable note above).
 - **Negative resulting stock is allowed, not rejected.** The physical sale already happened by the time this is called (e.g. two terminals both sold the last unit before either synced) — recording an oversell truthfully is more useful than rejecting a call that can't undo something that already occurred in the real world.
 - `resultingQuantity` in the response is `inventory.quantity_on_hand` *after* applying that item (or the value from the original application, on an idempotent replay) — callers can use it to detect oversells after the fact, not to gate anything server-side.
 - Unlike `/api/categories`/`/api/brands`/`/api/locations`, this is not a CRUD resource — there's no `GET`/list endpoint, since `stock_adjustments` is an append-only audit log of what's already been applied to `inventory`, not something clients browse.
+
+## Sale recording endpoint (`POST /api/sales`)
+
+`SalesController` → `SalesService` → `SalesTransactionRepository`/`SaleItemRepository`/`PaymentRepository`. This is how a POS terminal reports a **completed sale** — until this endpoint existed, `sales_transactions`/`sale_items`/`payments` had JPA entities and repositories but zero controllers/services using them; the only thing terminals reported was the stock delta above. `POST /api/sales` replaces that for sale reporting (it doesn't remove `/api/inventory/adjustments` — that stays a valid generic primitive, and `SalesService` reuses it internally, see below):
+
+```json
+{
+  "clientEventId": "<uuid the client generated for this sale>",
+  "items": [
+    { "variantId": 12, "quantity": 2, "unitPrice": 4500.00, "subtotal": 9000.00 }
+  ],
+  "payments": [
+    { "paymentMethodId": 3, "amount": 9000.00 }
+  ],
+  "discountAmount": 0,
+  "totalAmount": 9000.00
+}
+```
+
+- **Idempotent per `clientEventId`** at the whole-transaction level (`sales_transactions.client_event_id UNIQUE`, migration `V4__sales_recording.sql`) — a retried report (terminal applied it locally, never saw the response) returns the already-created transaction (`alreadyProcessed: true`) instead of duplicating the sale, its items, or its payments.
+- **Atomically applies the matching stock adjustment** by building a `StockAdjustmentBatchRequest` (same `clientEventId`, `quantityDelta = -quantity` per line) and calling `InventoryService.applyAdjustments` directly, in the same `@Transactional` method — no duplicated stock-decrement logic, and the sale record + stock decrement either both happen or neither does.
+- **Employee attribution is a placeholder.** The desktop POS has no real per-cashier login, so every sale is attributed to one seeded employee (`username = 'pos-terminal'`, seeded by `V4__sales_recording.sql` along with a placeholder `employee_roles`/`attach_files` row it needs to satisfy the `BIGSERIAL` NOT-NULL gotcha above). This employee can't log in anywhere — there's no employee auth endpoint in this codebase at all yet — it exists purely as a valid FK target. Revisit `SalesService.DEFAULT_EMPLOYEE_USERNAME` when real cashier login exists.
+- `taxAmount` is always `0` — the local POS schema has no IVA/tax breakdown to report, so there's nothing to send.
+- Scoped to the same `DEFAULT_LOCATION_NAME` as everything else (see above) — no per-request location yet.
+
+## Report endpoints (`GET /api/reports/*`)
+
+`ReportController` → `ReportService`, backing the mobile app's report screens (see `apps/galfields-mobile`'s CLAUDE.md). All date-ranged reports take `from`/`to` as plain `YYYY-MM-DD` dates (inclusive); omitting both defaults to today, omitting just `from` scopes to the single `to` day.
+
+- `GET /api/reports/sales-summary?from=&to=` — total sales / transaction count / average ticket over the range. Mobile's "Ventas del día" calls this with no params (defaults to today).
+- `GET /api/reports/sales-by-payment-method?from=&to=` — sum/count grouped by `payment_methods`. Backs both "Ventas por método de pago" **and** "Cierre de caja" — the latter is this same aggregate called with `from=to=<today>`; there's deliberately no separate cash-session endpoint (no open/close-shift concept exists — "cierre de caja" here means a same-day payment-method summary, not a formal register session).
+- `GET /api/reports/invoices?from=&to=&page=&size=` — paginated (`PagedModel`, same convention as `ProductController#list`) invoice list for "Historial de facturas". `GET /api/reports/invoices/{transactionId}` returns the full line-item + payment breakdown for one invoice.
+- `GET /api/reports/inventory?page=&size=` — current stock per variant/location, join across `inventory`/`product_variants`/`products`/`categories`/`locations`. Doesn't depend on anything above — works today regardless of whether any sale has ever been reported.
+- `GET /api/reports/low-stock?threshold=&page=&size=` — same shape, filtered to `quantity_on_hand <= threshold` (default `5`, matching the desktop POS's own hardcoded low-stock threshold; `products`/`product_variants` still have no per-product minimum-stock column).
+
+`ReportService` is class-annotated `@Transactional(readOnly = true)` — this isn't just a style choice: `RoutingDataSource` (see `config/`) routes any read-only transaction to the Postgres **replica**, primary only for writes. Any new report method added here should stay read-only for that reason; don't add a write inside `ReportService` without moving it elsewhere.
 
 ## Image compression utility
 

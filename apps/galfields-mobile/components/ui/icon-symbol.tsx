@@ -53,6 +53,11 @@ const MAPPING = {
   'building.2.fill': 'store',
   'mappin.and.ellipse': 'location-on',
   'creditcard.fill': 'credit-card',
+  // Reports
+  'chart.pie.fill': 'pie-chart',
+  'banknote.fill': 'payments',
+  'exclamationmark.triangle.fill': 'warning',
+  'doc.text.fill': 'receipt',
 } as IconMapping;
 
 /**

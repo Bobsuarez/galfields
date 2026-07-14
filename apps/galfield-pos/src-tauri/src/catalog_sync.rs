@@ -15,6 +15,7 @@ struct RemoteCategory {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RemotePaymentMethod {
+    payment_method_id: i64,
     method_name: String,
     // The cloud sends `null` for most methods (only a few have an uploaded
     // image) — plain `String` fails to deserialize `null` at all, which is
@@ -114,9 +115,9 @@ pub async fn sync_payment_methods(
         let image_path = method.image_url.as_deref().unwrap_or("");
         db.conn
             .execute(
-                "INSERT INTO payment_method (name, url, is_active) VALUES (?1, ?2, ?3)
-                 ON CONFLICT(name) DO UPDATE SET is_active = excluded.is_active",
-                rusqlite::params![method.method_name, image_path, method.active as i32],
+                "INSERT INTO payment_method (name, url, is_active, remote_payment_method_id) VALUES (?1, ?2, ?3, ?4)
+                 ON CONFLICT(name) DO UPDATE SET is_active = excluded.is_active, remote_payment_method_id = excluded.remote_payment_method_id",
+                rusqlite::params![method.method_name, image_path, method.active as i32, method.payment_method_id],
             )
             .map_err(|e| {
                 format!(
