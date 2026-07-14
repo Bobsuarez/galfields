@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- The cloud CDN 403s any image request whose Referer isn't its own
+         domain (hotlink protection) - this app's origin (localhost:1420 in
+         dev, tauri://localhost in prod) is never on that allow-list, so every
+         outgoing request from this page (images included) must carry no
+         Referer at all. The per-<img> `referrerpolicy` attribute isn't
+         reliably honored by WebKitGTK - this page-wide meta tag is the older,
+         more compatible mechanism. See galfield-pos's CLAUDE.md. -->
+    <meta name="referrer" content="no-referrer" />
     <title>GarPOS — Punto de Venta</title>
   </head>
 

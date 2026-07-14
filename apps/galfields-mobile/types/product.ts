@@ -3,10 +3,14 @@ export interface ProductVariantAttribute {
   value: string;
 }
 
-/** One variant row as edited in the add-product form — numeric fields stay
- * strings while the user types, converted to numbers only at submit time.
- * No `sku` here: it's derived from the product name + first attribute value
- * + barcode (see utils/sku.ts), never typed by the user. */
+/** One variant row as edited in the add/edit-product form — numeric fields
+ * stay strings while the user types, converted to numbers only at submit
+ * time. No editable `sku` field: on create it's derived from the product
+ * name + first attribute value + barcode (see utils/sku.ts). When editing an
+ * existing variant, `originalSku` pins it to its real backend sku instead —
+ * ProductService.updateProduct matches variants by sku, so if we let the sku
+ * drift with barcode/attribute edits it would stop matching and the backend
+ * would silently create a duplicate variant instead of updating this one. */
 export interface ProductVariantDraft {
   barcode: string;
   price: string;
@@ -14,6 +18,7 @@ export interface ProductVariantDraft {
   initialStock: string;
   attributes: ProductVariantAttribute[];
   imageUri?: string;
+  originalSku?: string;
 }
 
 export function createEmptyVariantDraft(): ProductVariantDraft {

@@ -115,7 +115,11 @@ Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON 
 
 ## Image compression utility
 
-`co.com.galfields.pos.util.ImageCompressor` (Thumbnailator-backed) downscales images to a 1600px max dimension (never upscales) and re-encodes JPEGs at ~82% quality before upload; PNGs and unrecognized content types pass through mostly as-is. It's a plain `@Component` with a single `compress(MultipartFile): byte[]` method, meant to be called by any service before handing bytes to `MinioService` — not specific to products. `ProductService` calls it for both product and variant images.
+`co.com.galfields.pos.util.ImageCompressor` (Thumbnailator-backed, with the `org.sejda.imageio:webp-imageio` ImageIO plugin providing the WebP writer SPI) downscales images to a 1600px max dimension (never upscales) and **re-encodes every JPEG/PNG upload to WebP** (~80% quality) before upload — not just compresses in its original format. GIF/SVG/other unrecognized content types pass through untouched. It's a plain `@Component` with a single `compress(MultipartFile): CompressedImage` method (`CompressedImage` is a `record(byte[] data, String contentType, String extension)`), meant to be called by any service before handing bytes to `MinioService` — not specific to products. `ProductService` (product + variant images) and `PaymentMethodService` (payment method image) both call it; any new file-upload feature should reuse it too rather than compressing/uploading directly.
+
+**Why `CompressedImage` carries its own `contentType`/`extension`:** since the output format no longer matches the original upload's format (a `.png` in can become a `.webp` object), the object key extension and the `attach_files.mime_type` value must come from what `ImageCompressor` actually produced, not from `MultipartFile.getOriginalFilename()`/`getContentType()`. `MinioService#uploadProductImage`/`uploadVariantImage`/`uploadPaymentMethodImage` take a `CompressedImage` (not a raw `MultipartFile` + `byte[]`) for exactly this reason — don't revert to deriving the extension from the original filename.
+
+Images uploaded before this change keep their original JPEG/PNG object key and `mime_type` — nothing retroactively re-encodes existing `attach_files` rows, so the CDN will keep serving a mix of `.jpg`/`.png` (legacy) and `.webp` (new) URLs. This is expected, same as the pre-`files/`-prefix rows noted below.
 
 ## API documentation (Swagger / OpenAPI)
 

@@ -29,7 +29,12 @@ use std::sync::{
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
+use crate::logging;
 use crate::AppState;
+
+/// How often the reader thread's port poll wakes up to re-check the stop
+/// flag, matching the processor thread's `recv_timeout` cadence below.
+const POLL_TIMEOUT_MS: i32 = 150;
 
 // ── Event payload types ───────────────────────────────────────────────────────
 
@@ -112,16 +117,22 @@ fn spawn_barcode_listener(
     let (tx, rx) = mpsc::channel::<String>();
     let port_reader = port.clone();
     let app_reader  = app.clone();
+    let stop_reader = Arc::clone(&stop);
 
     // ── Thread 1: reader ──────────────────────────────────────────────────────
-    // Blocks on the port file. Sends each trimmed line to the channel.
-    // Exits when the channel closes (processor thread dropped rx) or on IO error.
+    // Waits on the port file (via `poll`, see below) and sends each trimmed
+    // line to the channel. Exits when the channel closes (processor thread
+    // dropped rx), on IO error, or when `stop` is flipped.
     std::thread::Builder::new()
         .name(format!("peripheral-barcode-reader-{}", port_reader))
         .spawn(move || {
             let file = match std::fs::File::open(&port_reader) {
                 Ok(f) => f,
                 Err(e) => {
+                    logging::step(
+                        "peripheral_manager::spawn_barcode_listener",
+                        format!("cannot open port {}: {}", port_reader, e),
+                    );
                     app_reader
                         .emit(
                             "peripheral-barcode-error",
@@ -132,25 +143,90 @@ fn spawn_barcode_listener(
                 }
             };
 
-            let reader = std::io::BufReader::new(file);
-            for line in reader.lines() {
-                match line {
-                    Ok(l) => {
-                        let barcode = l.trim().to_string();
-                        if !barcode.is_empty() && tx.send(barcode).is_err() {
+            logging::step(
+                "peripheral_manager::spawn_barcode_listener",
+                format!("reader started on {}", port_reader),
+            );
+
+            let fd = std::os::unix::io::AsRawFd::as_raw_fd(&file);
+            let mut reader = std::io::BufReader::new(file);
+            let mut buf: Vec<u8> = Vec::new();
+
+            loop {
+                if stop_reader.load(Ordering::SeqCst) {
+                    // Without this check, a reader stopped mid-wait (e.g. the
+                    // user navigated away from POS) keeps blocking on the port
+                    // until the *next* physical scan arrives — so switching
+                    // back to POS starts a second reader on the same port
+                    // while this stale one is still alive. Whichever of the
+                    // two the OS hands the next scan's bytes to "wins"; if
+                    // it's this one, it reads the barcode fine but fails to
+                    // forward it (its processor already shut down) and only
+                    // then exits — which is exactly the "first scan after
+                    // switching views does nothing, second one works" pattern.
+                    // Polling the port with a short timeout below lets a
+                    // stopped reader notice and exit within POLL_TIMEOUT_MS,
+                    // instead of waiting for a phantom scan to kill it.
+                    logging::step(
+                        "peripheral_manager::spawn_barcode_listener",
+                        format!("reader for {} stopped", port_reader),
+                    );
+                    break;
+                }
+
+                let mut pfd = libc::pollfd { fd, events: libc::POLLIN, revents: 0 };
+                let ready = unsafe { libc::poll(&mut pfd, 1, POLL_TIMEOUT_MS) };
+                if ready == 0 {
+                    continue; // timeout, no data yet — loop back and re-check stop
+                }
+                if ready < 0 {
+                    logging::step(
+                        "peripheral_manager::spawn_barcode_listener",
+                        format!("poll() failed on {}", port_reader),
+                    );
+                    break;
+                }
+
+                buf.clear();
+                match reader.read_until(b'\n', &mut buf) {
+                    Ok(0) => {
+                        // EOF: the port was closed (device unplugged).
+                        logging::step(
+                            "peripheral_manager::spawn_barcode_listener",
+                            format!("port {} closed (EOF)", port_reader),
+                        );
+                        break;
+                    }
+                    Ok(_) => {
+                        // Read raw bytes instead of requiring valid UTF-8. The old
+                        // `BufRead::lines()` version errored out with `InvalidData` —
+                        // and silently discarded — the *entire* line whenever a single
+                        // stray non-UTF-8 byte showed up (scanner startup noise, a
+                        // checksum byte, a cable glitch), which is what made scans
+                        // intermittently vanish with no error and no trace. Filtering
+                        // to printable ASCII keeps the real barcode digits/letters
+                        // even when junk bytes are mixed in around them.
+                        let barcode: String = buf
+                            .iter()
+                            .filter(|b| b.is_ascii_graphic())
+                            .map(|&b| b as char)
+                            .collect();
+
+                        if barcode.is_empty() {
+                            continue;
+                        }
+
+                        if tx.send(barcode).is_err() {
                             break; // processor dropped receiver → stop
                         }
                     }
-                    // `BufRead::lines()` requires valid UTF-8; a stray non-UTF-8
-                    // byte (scanner startup noise, a checksum byte, …) makes a
-                    // single read come back as `InvalidData`. That used to
-                    // `break` here, silently and permanently killing the reader
-                    // thread after the very next bad scan — no error surfaced,
-                    // no reconnect, the listener just went dead. Skip the bad
-                    // line and keep reading instead; only a genuine IO error
-                    // (e.g. the device was unplugged) should actually stop it.
-                    Err(e) if e.kind() == std::io::ErrorKind::InvalidData => continue,
-                    Err(_) => break,
+                    Err(e) => {
+                        logging::step(
+                            "peripheral_manager::spawn_barcode_listener",
+                            format!("reader IO error on {}: {}", port_reader, e),
+                        );
+                        break;
+                    }
                 }
             }
         })
@@ -192,9 +268,17 @@ fn spawn_barcode_listener(
                     Ok(barcode) => {
                         match find_product_by_barcode(&conn, &barcode) {
                             Ok(Some(product)) => {
+                                logging::step(
+                                    "peripheral_manager::spawn_barcode_listener",
+                                    format!("barcode '{}' matched product '{}'", barcode, product.product_name),
+                                );
                                 app_proc.emit("peripheral-barcode-found", product).ok();
                             }
                             Ok(None) => {
+                                logging::step(
+                                    "peripheral_manager::spawn_barcode_listener",
+                                    format!("barcode '{}' matched no active product", barcode),
+                                );
                                 app_proc
                                     .emit(
                                         "peripheral-barcode-not-found",
@@ -203,6 +287,10 @@ fn spawn_barcode_listener(
                                     .ok();
                             }
                             Err(e) => {
+                                logging::step(
+                                    "peripheral_manager::spawn_barcode_listener",
+                                    format!("lookup for barcode '{}' failed: {}", barcode, e),
+                                );
                                 app_proc
                                     .emit(
                                         "peripheral-barcode-error",
@@ -217,6 +305,10 @@ fn spawn_barcode_listener(
                     }
                     Err(mpsc::RecvTimeoutError::Disconnected) => {
                         // Reader thread died (port disconnected).
+                        logging::step(
+                            "peripheral_manager::spawn_barcode_listener",
+                            format!("reader for {} disconnected, stopping processor", port),
+                        );
                         app_proc
                             .emit(
                                 "peripheral-barcode-status",

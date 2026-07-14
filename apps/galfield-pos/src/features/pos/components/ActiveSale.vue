@@ -17,6 +17,22 @@ function categoryEmoji(category: string): string {
   return CATEGORY_EMOJI[category?.toLowerCase()] ?? '📦'
 }
 
+// Cart rows only ever showed the category emoji, never the product's own
+// photo (ProductCard.vue in the catalog grid already does) — same
+// "real image, fall back to emoji on missing/failed load" treatment here,
+// tracked per product id since this is a v-for list, not a single value
+// like the payment method above.
+const failedProductImageIds = ref(new Set<string>())
+
+function hasProductImage(item: CartItem): boolean {
+  return !!item.product.imagePath && !failedProductImageIds.value.has(item.product.id)
+}
+
+function handleProductImageError(item: CartItem): void {
+  console.error(`[ActiveSale] failed to load product image: ${item.product.imagePath}`)
+  failedProductImageIds.value = new Set(failedProductImageIds.value).add(item.product.id)
+}
+
 /** Shows the cash-received amount formatted like the rest of the panel (e.g. "$ 10.000"); empty until the user types something. */
 function formatCashInput(value: number): string {
   return value > 0 ? formatCurrency(value) : ''
@@ -36,6 +52,7 @@ const props = defineProps<{
   amountReceived: number
   changeDue: number
   paymentMethod: string
+  paymentMethodUrl: string
   canCheckout: boolean
 }>()
 
@@ -49,6 +66,23 @@ const emit = defineEmits<{
   (e: 'new'): void
   (e: 'checkout'): void
 }>()
+
+// Same "show the cloud image, fall back to the emoji" behavior as
+// PaymentMethodModal.vue: no url, or the url fails to load, falls back to
+// `getPaymentMethodEmoji`. Only one method is shown here (not a v-for list
+// like the modal), so a single ref is enough — reset it whenever the
+// selected method changes so switching to a different method always gets a
+// fresh attempt at loading its image instead of staying stuck on the
+// previous method's failure.
+const imageFailed = ref(false)
+watch(() => props.paymentMethod, () => { imageFailed.value = false })
+
+const hasPaymentMethodImage = computed(() => !!props.paymentMethodUrl && !imageFailed.value)
+
+function handlePaymentMethodImageError(): void {
+  console.error(`[ActiveSale] failed to load payment method image: ${props.paymentMethodUrl}`)
+  imageFailed.value = true
+}
 
 // Jumps the cashier straight to the cash-received field whenever an item is
 // added (new product or +1 on an existing one), so a full sale can be typed
@@ -97,7 +131,15 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
     </div>
 
     <button class="payment-method-field" type="button" @click="emit('edit-payment-method')">
-      <span class="payment-method-emoji">{{ getPaymentMethodEmoji(paymentMethod) }}</span>
+      <img
+        v-if="hasPaymentMethodImage"
+        :src="paymentMethodUrl"
+        class="payment-method-image"
+        alt=""
+        referrerpolicy="no-referrer"
+        @error="handlePaymentMethodImageError"
+      />
+      <span v-else class="payment-method-emoji">{{ getPaymentMethodEmoji(paymentMethod) }}</span>
       <span class="payment-method-label">{{ paymentMethod }}</span>
       <AppIcon name="chevron-right" :size="13" class="payment-method-chevron" />
     </button>
@@ -109,7 +151,15 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
       </div>
 
       <div v-for="item in cartItems" :key="item.product.id" class="cart-item">
-        <div class="item-emoji">{{ categoryEmoji(item.product.category) }}</div>
+        <img
+          v-if="hasProductImage(item)"
+          :src="item.product.imagePath"
+          class="item-image"
+          alt=""
+          referrerpolicy="no-referrer"
+          @error="handleProductImageError(item)"
+        />
+        <div v-else class="item-emoji">{{ categoryEmoji(item.product.category) }}</div>
         <div class="item-info">
           <p class="item-name">{{ item.product.productName }}</p>
           <p class="item-unit">{{ formatCurrency(item.unitPrice) }} / u.</p>
@@ -265,6 +315,14 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
   flex-shrink: 0;
 }
 
+.payment-method-image {
+  width: 18px;
+  height: 18px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 .payment-method-label {
   flex: 1;
   color: var(--color-text);
@@ -312,6 +370,14 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
   flex-shrink: 0;
   width: 28px;
   text-align: center;
+}
+
+.item-image {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
 }
 
 .item-info {

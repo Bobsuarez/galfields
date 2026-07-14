@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Product, ProductInput } from '@/types/product';
-import { createProduct, fetchProducts, RemoteProduct } from '@/services/products-api';
+import { createProduct, fetchProducts, RemoteProduct, updateProduct as updateProductApi } from '@/services/products-api';
 
 interface ProductsContextValue {
   products: Product[];
@@ -11,6 +11,7 @@ interface ProductsContextValue {
   refresh: () => void;
   loadMore: () => void;
   addProduct: (data: ProductInput) => Promise<Product>;
+  updateProduct: (productId: string, data: ProductInput) => Promise<Product>;
   searchProducts: (query: string) => Product[];
 }
 
@@ -74,6 +75,13 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     return newProduct;
   };
 
+  const updateProduct = async (productId: string, data: ProductInput): Promise<Product> => {
+    const remoteProduct = await updateProductApi(productId, data);
+    const updated = toLocalProduct(remoteProduct);
+    setProducts(prev => prev.map(p => (p.id === updated.id ? updated : p)));
+    return updated;
+  };
+
   const searchProducts = (query: string): Product[] => {
     if (!query.trim()) return products;
     const lower = query.toLowerCase();
@@ -91,6 +99,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         refresh,
         loadMore,
         addProduct,
+        updateProduct,
         searchProducts,
       }}
     >

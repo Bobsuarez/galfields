@@ -3,12 +3,14 @@ import { useReports } from './composables/useReports'
 import KpiCard from './components/KpiCard.vue'
 import ReportsPasswordModal from './components/ReportsPasswordModal.vue'
 import TopProductsTable from './components/TopProductsTable.vue'
-import TopCajeros from './components/TopCajeros.vue'
+import PaymentMethodBreakdown from './components/PaymentMethodBreakdown.vue'
 import LowStockTable from './components/LowStockTable.vue'
+import ProductsNoMovementTable from './components/ProductsNoMovementTable.vue'
 import FinancialSummary from './components/FinancialSummary.vue'
 import LineChart from '../../components/shared/charts/LineChart.vue'
 import DonutChart from '../../components/shared/charts/DonutChart.vue'
 import BarChart from '../../components/shared/charts/BarChart.vue'
+import AppDatePicker from '../../components/shared/AppDatePicker.vue'
 
 const {
   dateFrom,
@@ -24,7 +26,8 @@ const {
   categorySales,
   barData,
   topProducts,
-  topCajeros,
+  paymentMethods,
+  productsNoMovement,
   lowStock,
   financial,
 } = useReports()
@@ -38,6 +41,20 @@ function fmtBar(v: number): string {
   if (v >= 1000) return Math.round(v / 1000) + 'k'
   return String(v)
 }
+
+// AppDatePicker (see its own file for why it replaces `<input type="date">`)
+// emits the picked ISO date directly on selection — applying the range right
+// away means there's no separate "Filtros" click needed for the common case
+// of picking one date and expecting it to just work.
+function onDateFromSelect(value: string): void {
+  dateFrom.value = value
+  applyDateRange()
+}
+
+function onDateToSelect(value: string): void {
+  dateTo.value = value
+  applyDateRange()
+}
 </script>
 
 <template>
@@ -50,9 +67,9 @@ function fmtBar(v: number): string {
       </div>
       <div class="header-right">
         <div class="date-range">
-          <input v-model="dateFrom" type="date" class="date-input" />
+          <AppDatePicker :model-value="dateFrom" @update:model-value="onDateFromSelect" />
           <span class="date-sep">—</span>
-          <input v-model="dateTo" type="date" class="date-input" />
+          <AppDatePicker :model-value="dateTo" @update:model-value="onDateToSelect" />
         </div>
         <button class="btn-filter" @click="applyDateRange">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -86,11 +103,11 @@ function fmtBar(v: number): string {
             <div class="chart-legend">
               <span class="legend-item">
                 <span class="legend-dot" style="background:#F28D35" />
-                Esta semana
+                Este periodo
               </span>
               <span class="legend-item">
                 <span class="legend-dot legend-dot--dashed" />
-                Semana anterior
+                Periodo anterior
               </span>
             </div>
           </div>
@@ -122,12 +139,13 @@ function fmtBar(v: number): string {
           </div>
         </div>
 
-        <TopCajeros :cajeros="topCajeros" />
+        <PaymentMethodBreakdown :methods="paymentMethods" />
       </div>
 
-      <!-- Bottom Row: Low Stock + Financial -->
+      <!-- Bottom Row: Low Stock + No Movement + Financial -->
       <div class="bottom-row">
         <LowStockTable :items="lowStock" />
+        <ProductsNoMovementTable :items="productsNoMovement" />
         <FinancialSummary :data="financial" />
       </div>
     </div>
@@ -190,20 +208,6 @@ function fmtBar(v: number): string {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 4px 10px;
-}
-
-.date-input {
-  background: transparent;
-  border: none;
-  color: var(--color-text);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.date-input::-webkit-calendar-picker-indicator {
-  filter: invert(0.6);
-  cursor: pointer;
 }
 
 .date-sep {
@@ -354,7 +358,7 @@ function fmtBar(v: number): string {
 
 .bottom-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 12px;
 }
 </style>

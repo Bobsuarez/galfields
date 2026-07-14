@@ -1,6 +1,8 @@
 mod catalog_sync;
 mod db;
+mod http_client;
 mod invoices;
+mod logging;
 mod payment_methods;
 mod pending_sales;
 mod peripheral_manager;
@@ -73,6 +75,12 @@ pub fn run() {
             reports::get_sales_summary,
             reports::get_top_products,
             reports::get_financial_summary,
+            reports::get_sales_by_day,
+            reports::get_sales_by_category,
+            reports::get_sales_by_hour,
+            reports::get_sales_by_payment_method,
+            reports::get_products_without_movement,
+            reports::get_low_stock_report,
             products::get_low_stock_products,
             products::get_products,
             peripheral_manager::start_peripheral_listener,

@@ -5,12 +5,19 @@ import { formatCurrency } from '../../../utils/currency'
 import { deriveStockStatus } from '../../../utils/stock'
 import AppIcon from '../../../components/shared/AppIcon.vue'
 
-defineProps<{ product: Product }>()
+const props = defineProps<{ product: Product }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 // Same fallback rule as ProductCard.vue: no synced image, or the URL fails
 // to load, falls back to the category emoji.
 const imageFailed = ref(false)
+
+// See ProductCard.vue's handleImageError — same reasoning: surface the real
+// network error in DevTools instead of a silent emoji fallback.
+function handleImageError() {
+  console.error(`[ProductDetail] failed to load product image: ${props.product.imagePath}`)
+  imageFailed.value = true
+}
 
 const CATEGORY_EMOJI: Record<string, string> = {
   bebidas: '🥤', beverages: '🥤',
@@ -49,7 +56,8 @@ function formatSyncDate(value: string | null): string {
           :src="product.imagePath"
           class="product-photo"
           alt=""
-          @error="imageFailed = true"
+          referrerpolicy="no-referrer"
+          @error="handleImageError"
         />
         <span v-else class="product-emoji">{{ categoryEmoji(product.category) }}</span>
         <span v-if="!product.isActive" class="status-chip badge--inactive">Desactivado</span>

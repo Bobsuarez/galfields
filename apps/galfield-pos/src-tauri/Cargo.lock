@@ -1156,6 +1156,7 @@ dependencies = [
 name = "galfield-pos"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "reqwest 0.12.28",
  "rusqlite",
  "serde",

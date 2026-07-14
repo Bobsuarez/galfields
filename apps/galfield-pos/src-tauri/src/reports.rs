@@ -132,3 +132,282 @@ pub fn get_financial_summary(
 
     Ok(FinancialSummary { gross_sales, discounts, net_sales })
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DailySalesRow {
+    pub date:  String,
+    pub total: f64,
+}
+
+/// Sales total per calendar day over an inclusive `[date_from, date_to]` range.
+/// Every day in the range gets a row (0 when there were no sales that day) via
+/// a recursive date-series CTE, so the frontend line chart never has to guess
+/// at gaps — "vs previous period" is composed by calling this twice, same
+/// pattern as `get_sales_summary`.
+#[tauri::command]
+pub fn get_sales_by_day(
+    state: State<AppState>,
+    date_from: String,
+    date_to: String,
+) -> Result<Vec<DailySalesRow>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn
+        .prepare(
+            "WITH RECURSIVE dates(d) AS (
+                SELECT date(?1)
+                UNION ALL
+                SELECT date(d, '+1 day') FROM dates WHERE d < date(?2)
+             )
+             SELECT dates.d, COALESCE(SUM(s.total), 0)
+             FROM dates
+             LEFT JOIN sales s ON date(s.created_at) = dates.d
+             GROUP BY dates.d
+             ORDER BY dates.d",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![date_from, date_to], |row| {
+            Ok(DailySalesRow { date: row.get(0)?, total: row.get(1)? })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CategorySalesRow {
+    pub category: String,
+    pub total:    f64,
+}
+
+/// Revenue per product category over an inclusive `[date_from, date_to]`
+/// range. `products.category` is a plain denormalized text column (see
+/// CLAUDE.md), so products with an empty/NULL category are grouped under
+/// "Sin categoría" instead of being dropped.
+#[tauri::command]
+pub fn get_sales_by_category(
+    state: State<AppState>,
+    date_from: String,
+    date_to: String,
+) -> Result<Vec<CategorySalesRow>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn
+        .prepare(
+            "SELECT COALESCE(NULLIF(p.category, ''), 'Sin categoría') AS category,
+                    SUM(si.subtotal) AS total
+             FROM sale_items si
+             JOIN sales s ON s.id = si.sale_id
+             JOIN products p ON p.id = si.product_id
+             WHERE date(s.created_at) BETWEEN ?1 AND ?2
+             GROUP BY category
+             ORDER BY total DESC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![date_from, date_to], |row| {
+            Ok(CategorySalesRow { category: row.get(0)?, total: row.get(1)? })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HourlySalesRow {
+    pub hour:  String,
+    pub total: f64,
+}
+
+/// Sales total grouped by hour-of-day (`00`-`23`) over an inclusive
+/// `[date_from, date_to]` range. Only hours that actually had a sale are
+/// returned (no zero-padding across all 24 hours) — the bar chart just
+/// renders whatever comes back.
+#[tauri::command]
+pub fn get_sales_by_hour(
+    state: State<AppState>,
+    date_from: String,
+    date_to: String,
+) -> Result<Vec<HourlySalesRow>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn
+        .prepare(
+            "SELECT strftime('%H', created_at) AS hour, SUM(total) AS total
+             FROM sales
+             WHERE date(created_at) BETWEEN ?1 AND ?2
+             GROUP BY hour
+             ORDER BY hour",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![date_from, date_to], |row| {
+            Ok(HourlySalesRow { hour: row.get(0)?, total: row.get(1)? })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaymentMethodSalesRow {
+    pub method:     String,
+    pub total:      f64,
+    pub sale_count: i64,
+}
+
+/// Revenue and sale count per payment method over an inclusive
+/// `[date_from, date_to]` range.
+#[tauri::command]
+pub fn get_sales_by_payment_method(
+    state: State<AppState>,
+    date_from: String,
+    date_to: String,
+) -> Result<Vec<PaymentMethodSalesRow>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn
+        .prepare(
+            "SELECT pm.name, SUM(s.total) AS total, COUNT(*) AS sale_count
+             FROM sales s
+             JOIN payment_method pm ON pm.id = s.payment_method
+             WHERE date(s.created_at) BETWEEN ?1 AND ?2
+             GROUP BY pm.id
+             ORDER BY total DESC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![date_from, date_to], |row| {
+            Ok(PaymentMethodSalesRow {
+                method:     row.get(0)?,
+                total:      row.get(1)?,
+                sale_count: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductNoMovementRow {
+    pub product_name:   String,
+    pub category:       String,
+    pub stock_quantity: f64,
+}
+
+/// Active products with zero `sale_items` in the inclusive `[date_from,
+/// date_to]` range — dead-stock candidates. Capped by `limit` (ordered
+/// alphabetically, there's no natural "worst first" order for zero sales).
+#[tauri::command]
+pub fn get_products_without_movement(
+    state: State<AppState>,
+    date_from: String,
+    date_to: String,
+    limit: i64,
+) -> Result<Vec<ProductNoMovementRow>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn
+        .prepare(
+            "SELECT p.product_name, COALESCE(p.category, ''), p.stock_quantity
+             FROM products p
+             WHERE p.is_active = 1
+               AND NOT EXISTS (
+                 SELECT 1 FROM sale_items si
+                 JOIN sales s ON s.id = si.sale_id
+                 WHERE si.product_id = p.id AND date(s.created_at) BETWEEN ?1 AND ?2
+               )
+             ORDER BY p.product_name
+             LIMIT ?3",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![date_from, date_to, limit], |row| {
+            Ok(ProductNoMovementRow {
+                product_name:   row.get(0)?,
+                category:       row.get(1)?,
+                stock_quantity: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LowStockReportRow {
+    pub product_name:   String,
+    pub current_stock:  f64,
+    pub threshold:      f64,
+    pub units_sold:     i64,
+    /// "critico" when stock is at or below 1 unit, "bajo" otherwise —
+    /// mirrors the cutoff `AppSidebar.vue` already uses for its low-stock
+    /// alert list, kept consistent rather than inventing a second rule.
+    pub status:         String,
+}
+
+/// Low-stock active products (`stock_quantity <= threshold`), each paired
+/// with how many units sold in the inclusive `[date_from, date_to]` range —
+/// unlike `products::get_low_stock_products` (used by the sidebar banner,
+/// which has no date range and no sales figure), this is the reports-page
+/// version with the extra "Ventas" column the report table needs.
+#[tauri::command]
+pub fn get_low_stock_report(
+    state: State<AppState>,
+    date_from: String,
+    date_to: String,
+    threshold: f64,
+    limit: i64,
+) -> Result<Vec<LowStockReportRow>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    let mut stmt = db
+        .conn
+        .prepare(
+            "SELECT p.product_name, p.stock_quantity,
+                    COALESCE((
+                      SELECT SUM(si.quantity)
+                      FROM sale_items si
+                      JOIN sales s ON s.id = si.sale_id
+                      WHERE si.product_id = p.id AND date(s.created_at) BETWEEN ?1 AND ?2
+                    ), 0) AS units_sold
+             FROM products p
+             WHERE p.is_active = 1 AND p.stock_quantity <= ?3
+             ORDER BY p.stock_quantity ASC
+             LIMIT ?4",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(rusqlite::params![date_from, date_to, threshold, limit], |row| {
+            let current_stock: f64 = row.get(1)?;
+            Ok(LowStockReportRow {
+                product_name:  row.get(0)?,
+                current_stock,
+                threshold,
+                units_sold:    row.get(2)?,
+                status:        if current_stock <= 1.0 { "critico".to_string() } else { "bajo".to_string() },
+            })
+        })
+        .map_err(|e| e.to_string())?;
+
+    rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+}

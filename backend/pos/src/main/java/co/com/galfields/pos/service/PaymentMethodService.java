@@ -8,6 +8,7 @@ import co.com.galfields.pos.entity.PaymentMethodImage;
 import co.com.galfields.pos.exception.ResourceNotFoundException;
 import co.com.galfields.pos.repository.AttachFileRepository;
 import co.com.galfields.pos.repository.PaymentMethodRepository;
+import co.com.galfields.pos.util.CompressedImage;
 import co.com.galfields.pos.util.ImageCompressor;
 import java.util.List;
 import java.util.Optional;
@@ -77,8 +78,8 @@ public class PaymentMethodService {
     }
 
     private void attachImage(PaymentMethod paymentMethod, MultipartFile file) {
-        byte[] compressed = imageCompressor.compress(file);
-        String objectKey = minioService.uploadPaymentMethodImage(paymentMethod, file, compressed);
+        CompressedImage compressed = imageCompressor.compress(file);
+        String objectKey = minioService.uploadPaymentMethodImage(paymentMethod, compressed);
         AttachFile attachFile = saveAttachFile(file, compressed, objectKey);
 
         PaymentMethodImage paymentMethodImage = paymentMethod.getImage();
@@ -98,12 +99,12 @@ public class PaymentMethodService {
         }
     }
 
-    private AttachFile saveAttachFile(MultipartFile file, byte[] data, String objectKey) {
+    private AttachFile saveAttachFile(MultipartFile file, CompressedImage image, String objectKey) {
         AttachFile attachFile = new AttachFile();
         attachFile.setName(file.getOriginalFilename() != null ? file.getOriginalFilename() : objectKey);
         attachFile.setUrl(objectKey);
-        attachFile.setMimeType(file.getContentType());
-        attachFile.setSize(data.length);
+        attachFile.setMimeType(image.contentType());
+        attachFile.setSize(image.data().length);
         return attachFileRepository.save(attachFile);
     }
 

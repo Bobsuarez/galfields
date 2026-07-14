@@ -33,11 +33,14 @@ public class DataSourceConfig {
     @Primary
     public DataSource dataSource(
             @Qualifier("primaryDataSource") DataSource primaryDataSource,
-            @Qualifier("replicaDataSource") DataSource replicaDataSource) {
+            @Qualifier("replicaDataSource") DataSource replicaDataSource
+    ) {
         RoutingDataSource routingDataSource = new RoutingDataSource();
+    
         routingDataSource.setTargetDataSources(Map.of(
                 RoutingDataSource.PRIMARY, primaryDataSource,
                 RoutingDataSource.REPLICA, replicaDataSource));
+    
         routingDataSource.setDefaultTargetDataSource(primaryDataSource);
         routingDataSource.afterPropertiesSet();
         return routingDataSource;

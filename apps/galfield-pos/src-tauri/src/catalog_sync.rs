@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::http_client::{self, API_BASE_URL};
+use crate::logging;
 use crate::AppState;
-
-const API_BASE_URL: &str = "https://galfields.kinforgeworks.com";
 
 #[derive(Deserialize)]
 struct RemoteCategory {
@@ -16,6 +16,12 @@ struct RemoteCategory {
 #[serde(rename_all = "camelCase")]
 struct RemotePaymentMethod {
     method_name: String,
+    // The cloud sends `null` for most methods (only a few have an uploaded
+    // image) — plain `String` fails to deserialize `null` at all, which is
+    // exactly what was breaking the whole sync on the first method without
+    // an image.
+    #[serde(default)]
+    image_url: Option<String>,
     active: bool,
 }
 
@@ -33,24 +39,26 @@ pub struct PaymentMethodSyncSummary {
 /// reinserting exactly what the cloud returned.
 #[tauri::command]
 pub async fn sync_categories(state: State<'_, AppState>) -> Result<i64, String> {
-    let client = reqwest::Client::new();
-    let response = client
-        .get(format!("{}/api/categories", API_BASE_URL))
-        .send()
-        .await
-        .map_err(|e| format!("No se pudo conectar con el servidor: {}", e))?;
+    const LOC: &str = "catalog_sync::sync_categories";
+    logging::step(LOC, "iniciando sincronización de categorías");
 
-    if !response.status().is_success() {
+    let response = http_client::get(&format!("{}/api/categories", API_BASE_URL)).await?;
+
+    if !response.is_success() {
         return Err(format!(
             "El servidor respondió {} al sincronizar categorías",
-            response.status()
+            response.status
         ));
     }
 
-    let categories: Vec<RemoteCategory> = response
-        .json()
-        .await
-        .map_err(|e| format!("Respuesta inesperada del servidor: {}", e))?;
+    let categories: Vec<RemoteCategory> = http_client::parse_json(LOC, &response.body)?;
+    logging::step(
+        LOC,
+        format!(
+            "{} categorías recibidas, reemplazando tabla local",
+            categories.len()
+        ),
+    );
 
     let mut db = state.db.lock().map_err(|e| e.to_string())?;
     let tx = db.conn.transaction().map_err(|e| e.to_string())?;
@@ -67,6 +75,7 @@ pub async fn sync_categories(state: State<'_, AppState>) -> Result<i64, String> 
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+    logging::step(LOC, "categorías sincronizadas");
 
     Ok(categories.len() as i64)
 }
@@ -81,36 +90,40 @@ pub async fn sync_categories(state: State<'_, AppState>) -> Result<i64, String> 
 /// only offers `is_active = 1` rows for new sales; existing sales keep
 /// their FK regardless.
 #[tauri::command]
-pub async fn sync_payment_methods(state: State<'_, AppState>) -> Result<PaymentMethodSyncSummary, String> {
-    let client = reqwest::Client::new();
-    let response = client
-        .get(format!("{}/api/payment-methods", API_BASE_URL))
-        .send()
-        .await
-        .map_err(|e| format!("No se pudo conectar con el servidor: {}", e))?;
+pub async fn sync_payment_methods(
+    state: State<'_, AppState>,
+) -> Result<PaymentMethodSyncSummary, String> {
+    const LOC: &str = "catalog_sync::sync_payment_methods";
+    logging::step(LOC, "iniciando sincronización de métodos de pago");
 
-    if !response.status().is_success() {
+    let response = http_client::get(&format!("{}/api/payment-methods", API_BASE_URL)).await?;
+
+    if !response.is_success() {
         return Err(format!(
             "El servidor respondió {} al sincronizar métodos de pago",
-            response.status()
+            response.status
         ));
     }
 
-    let methods: Vec<RemotePaymentMethod> = response
-        .json()
-        .await
-        .map_err(|e| format!("Respuesta inesperada del servidor: {}", e))?;
+    let methods: Vec<RemotePaymentMethod> = http_client::parse_json(LOC, &response.body)?;
+    logging::step(LOC, format!("{} métodos de pago recibidos", methods.len()));
 
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     for method in &methods {
+        let image_path = method.image_url.as_deref().unwrap_or("");
         db.conn
             .execute(
-                "INSERT INTO payment_method (name, is_active) VALUES (?1, ?2)
+                "INSERT INTO payment_method (name, url, is_active) VALUES (?1, ?2, ?3)
                  ON CONFLICT(name) DO UPDATE SET is_active = excluded.is_active",
-                rusqlite::params![method.method_name, method.active as i32],
+                rusqlite::params![method.method_name, image_path, method.active as i32],
             )
-            .map_err(|e| format!("Error guardando el método de pago '{}': {}", method.method_name, e))?;
+            .map_err(|e| {
+                format!(
+                    "Error guardando el método de pago '{}': {}",
+                    method.method_name, e
+                )
+            })?;
     }
 
     let deactivated = if methods.is_empty() {
@@ -128,6 +141,14 @@ pub async fn sync_payment_methods(state: State<'_, AppState>) -> Result<PaymentM
         let params = rusqlite::params_from_iter(names.iter());
         db.conn.execute(&sql, params).map_err(|e| e.to_string())?
     };
+
+    logging::step(
+        LOC,
+        format!(
+            "métodos de pago sincronizados, {} desactivados",
+            deactivated
+        ),
+    );
 
     Ok(PaymentMethodSyncSummary {
         synced: methods.len() as i64,

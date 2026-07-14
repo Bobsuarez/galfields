@@ -2,9 +2,9 @@ use serde::Serialize;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::http_client::{self, API_BASE_URL};
+use crate::logging;
 use crate::AppState;
-
-const API_BASE_URL: &str = "https://galfields.kinforgeworks.com";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,7 +103,9 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
 /// `sync.sales_retry_minutes` — never blocks checkout on network state.
 #[tauri::command]
 pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> Result<SalesSyncStatusPayload, String> {
+    const LOC: &str = "sales_sync::push_pending_sales";
     let mut pending = load_pending_sales(&state)?;
+    logging::step(LOC, format!("{} ventas pendientes encontradas", pending.len()));
 
     // Nothing to report to the cloud - resolve locally so they don't sit in
     // the pending count forever.
@@ -116,7 +118,6 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
         }
     });
 
-    let client = reqwest::Client::new();
     let mut pushed_count: i64 = 0;
     let mut error: Option<String> = None;
 
@@ -133,29 +134,29 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
                 .collect(),
         };
 
-        let response = client
-            .post(format!("{}/api/inventory/adjustments", API_BASE_URL))
-            .json(&payload)
-            .send()
-            .await;
+        let response = http_client::post_json(&format!("{}/api/inventory/adjustments", API_BASE_URL), &payload).await;
 
         match response {
-            Ok(res) if res.status().is_success() => {
+            Ok(res) if res.is_success() => {
                 mark_synced(&state, sale.sale_id)?;
                 pushed_count += 1;
+                logging::step(LOC, format!("venta {} reportada", sale.sale_id));
             }
             Ok(res) => {
-                error = Some(format!("El servidor respondió {} al reportar una venta", res.status()));
+                error = Some(format!("El servidor respondió {} al reportar una venta", res.status));
+                logging::step(LOC, format!("venta {} rechazada por el servidor: {}", sale.sale_id, res.status));
                 break;
             }
             Err(e) => {
-                error = Some(format!("No se pudo conectar con el servidor: {}", e));
+                logging::step(LOC, format!("venta {} no se pudo reportar: {}", sale.sale_id, e));
+                error = Some(e);
                 break;
             }
         }
     }
 
     let pending_count = load_pending_sales(&state)?.len() as i64;
+    logging::step(LOC, format!("terminado: {} enviadas, {} pendientes restantes", pushed_count, pending_count));
 
     let status = SalesSyncStatusPayload { pending_count, pushed_count, error };
     let _ = app.emit("sales-sync-status", status.clone());

@@ -38,7 +38,7 @@ export function VariantFormCard({
   onScanBarcode,
 }: VariantFormCardProps) {
   const { processing, pick, clear } = useImagePicker(imageUri => onChange({ ...value, imageUri: imageUri ?? undefined }));
-  const sku = buildVariantSku(productName, value.attributes[0]?.value ?? '', value.barcode);
+  const sku = value.originalSku ?? buildVariantSku(productName, value.attributes[0]?.value ?? '', value.barcode);
 
   return (
     <View style={styles.card}>

@@ -6,6 +6,7 @@ import jsPDF from 'jspdf'
 import { usePrinterBus, type PrinterInvoicePayload } from '../../../composables/peripherals/usePrinterBus'
 import { useCashDrawerBus } from '../../../composables/peripherals/useCashDrawerBus'
 import { useAppConfig } from '../../../composables/useAppConfig'
+import { refreshSidebarBanner } from '../../../composables/useSidebarBanner'
 import { useToast } from '../../../composables/useToast'
 import { formatDate } from '../../../utils/currency'
 import type { CartItem } from '../../../types'
@@ -188,6 +189,11 @@ export function useCheckout(onComplete: () => void) {
       // retry loop in lib.rs picks it back up on its own schedule; the
       // sale is already committed locally either way.
       invoke('push_pending_sales').catch(() => { /* retried by the background loop */ })
+
+      // Stock and today's total just changed (create_sale decremented the
+      // former, added to the latter) — refresh the sidebar banner immediately
+      // instead of waiting for its 10-minute auto-cycle (see useSidebarBanner.ts).
+      refreshSidebarBanner()
 
       show(`Factura ${result.invoiceNumber} generada con éxito`, 'success')
       showModal.value = false

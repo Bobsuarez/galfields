@@ -13,9 +13,9 @@ const { activeView, lowStockItems, todaySalesTotal, bannerTimestamp, mascotSrc }
 
 const navItems: NavItem[] = [
   { id: "pos", label: "Inicio", icon: "home", route: "/sync" },
-  { id: "productos", label: "Productos", icon: "package", route: "/productos" },
+  //{ id: "productos", label: "Productos", icon: "package", route: "/productos" },
   { id: "ventas", label: "Ventas", icon: "cart", route: "/pos" },
-  { id: "clientes", label: "Clientes", icon: "users", route: "/clientes" },
+ // { id: "clientes", label: "Clientes", icon: "users", route: "/clientes" },
   {
     id: "inventario",
     label: "Inventario",
@@ -23,13 +23,13 @@ const navItems: NavItem[] = [
     route: "/inventario",
   },
   { id: "reportes", label: "Reportes", icon: "bar-chart", route: "/reportes" },
-  {
+ /* {
     id: "proveedores",
     label: "Proveedores",
     icon: "truck",
     route: "/proveedores",
-  },
-  { id: "compras", label: "Compras", icon: "shopping-bag", route: "/compras" },
+  },*/
+  //{ id: "compras", label: "Compras", icon: "shopping-bag", route: "/compras" },
   {
     id: "configuracion",
     label: "Configuración",

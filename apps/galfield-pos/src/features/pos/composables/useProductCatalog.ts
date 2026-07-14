@@ -53,5 +53,6 @@ export function useProductCatalog() {
     filteredProducts,
     isLoading,
     selectCategory,
+    loadProducts,
   }
 }

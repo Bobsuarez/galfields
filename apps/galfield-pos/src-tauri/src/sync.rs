@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::http_client::API_BASE_URL;
+use crate::logging;
 use crate::AppState;
 
-const API_BASE_URL: &str = "https://galfields.kinforgeworks.com";
 const PAGE_SIZE: u32 = 100;
 
 #[derive(Deserialize)]
@@ -39,10 +40,22 @@ struct RemoteProduct {
     variants: Vec<RemoteVariant>,
 }
 
+// Spring's PagedModel (`@EnableSpringDataWebSupport(pageSerializationMode =
+// VIA_DTO)`, backend/pos's PosApplication.java) nests pagination metadata
+// under `page` instead of the flat `last`/`totalElements` fields older Page
+// serialization used - matching this exactly is what broke with "missing
+// field `last`" before this shape was matched.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RemotePageMeta {
+    number: u32,
+    total_pages: u32,
+}
+
 #[derive(Deserialize)]
 struct RemotePage {
     content: Vec<RemoteProduct>,
-    last: bool,
+    page: RemotePageMeta,
 }
 
 #[derive(Serialize)]
@@ -121,7 +134,9 @@ fn flatten(product: RemoteProduct) -> Vec<LocalProductRow> {
 /// runs automatically on app start.
 #[tauri::command]
 pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, String> {
-    let client = reqwest::Client::new();
+    const LOC: &str = "sync::sync_products";
+    logging::step(LOC, "iniciando sincronización de productos");
+
     let mut all_rows: Vec<LocalProductRow> = Vec::new();
     let mut products_fetched: i64 = 0;
     let mut page: u32 = 0;
@@ -132,26 +147,28 @@ pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, St
             API_BASE_URL, page, PAGE_SIZE
         );
 
-        let response = client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| format!("No se pudo conectar con el servidor: {}", e))?;
+        let response = crate::http_client::get(&url).await?;
 
-        if !response.status().is_success() {
+        if !response.is_success() {
             return Err(format!(
                 "El servidor respondió {} al sincronizar productos",
-                response.status()
+                response.status
             ));
         }
 
-        let page_data: RemotePage = response
-            .json()
-            .await
-            .map_err(|e| format!("Respuesta inesperada del servidor: {}", e))?;
+        let page_data: RemotePage = crate::http_client::parse_json(LOC, &response.body)?;
 
         products_fetched += page_data.content.len() as i64;
-        let is_last = page_data.last;
+        let is_last = page_data.page.number + 1 >= page_data.page.total_pages;
+        logging::step(
+            LOC,
+            format!(
+                "página {} recibida: {} productos, last={}",
+                page,
+                page_data.content.len(),
+                is_last
+            ),
+        );
 
         for product in page_data.content {
             all_rows.extend(flatten(product));
@@ -162,6 +179,8 @@ pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, St
         }
         page += 1;
     }
+
+    logging::step(LOC, format!("catálogo completo: {} filas a guardar en SQLite", all_rows.len()));
 
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
@@ -213,6 +232,16 @@ pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, St
             rusqlite::params![run_started_at],
         )
         .map_err(|e| e.to_string())?;
+
+    logging::step(
+        LOC,
+        format!(
+            "sincronización terminada: {} productos, {} variantes, {} desactivados",
+            products_fetched,
+            all_rows.len(),
+            products_deactivated
+        ),
+    );
 
     Ok(SyncSummary {
         products_fetched,

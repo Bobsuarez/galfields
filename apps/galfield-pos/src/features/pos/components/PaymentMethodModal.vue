@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { getPaymentMethodEmoji, type PaymentMethod } from '../../../composables/usePaymentMethods'
 
 defineProps<{ visible: boolean; current: string; methods: PaymentMethod[] }>()
@@ -6,6 +7,21 @@ const emit = defineEmits<{
   (e: 'select', key: string): void
   (e: 'cancel'): void
 }>()
+
+// Per-chip fallback: a method shows its cloud image when it has one and
+// hasn't failed to load; otherwise (no url, or the url 404s/errors) it falls
+// back to the hardcoded emoji, same "log the failure, don't fail silently"
+// convention as ProductCard.vue's `handleImageError`.
+const failedImageIds = ref(new Set<number>())
+
+function hasImage(method: PaymentMethod): boolean {
+  return !!method.url && !failedImageIds.value.has(method.id)
+}
+
+function handleImageError(method: PaymentMethod): void {
+  console.error(`[PaymentMethodModal] failed to load payment method image: ${method.url}`)
+  failedImageIds.value = new Set(failedImageIds.value).add(method.id)
+}
 </script>
 
 <template>
@@ -27,7 +43,15 @@ const emit = defineEmits<{
               type="button"
               @click="emit('select', method.name)"
             >
-              <span class="method-emoji">{{ getPaymentMethodEmoji(method.name) }}</span>
+              <img
+                v-if="hasImage(method)"
+                :src="method.url"
+                class="method-image"
+                alt=""
+                referrerpolicy="no-referrer"
+                @error="handleImageError(method)"
+              />
+              <span v-else class="method-emoji">{{ getPaymentMethodEmoji(method.name) }}</span>
               <span class="method-label">{{ method.name }}</span>
             </button>
           </div>
@@ -119,6 +143,13 @@ const emit = defineEmits<{
 .method-emoji {
   font-size: 24px;
   line-height: 1;
+}
+
+.method-image {
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
 }
 
 .method-label {

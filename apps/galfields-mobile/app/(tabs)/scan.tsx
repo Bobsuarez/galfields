@@ -1,7 +1,13 @@
-import { Redirect } from 'expo-router';
+import { ComingSoonScreen } from '@/components/ui/coming-soon-screen';
 
-// The barcode scanner lives inside products/add.
-// This route exists only to satisfy expo-router's tab file discovery.
+// Will become the barcode-scan-to-sale flow: scan a product's barcode to
+// start a new sale. Not built yet — see the sale-creation flow follow-up.
 export default function ScanScreen() {
-  return <Redirect href="/products/add" />;
+  return (
+    <ComingSoonScreen
+      icon="barcode.viewfinder"
+      title="Registrar venta"
+      message="Aquí vas a poder escanear el código de barras de un producto para iniciar una venta."
+    />
+  );
 }
