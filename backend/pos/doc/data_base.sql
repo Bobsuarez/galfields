@@ -215,7 +215,9 @@ CREATE TABLE sales_transactions
     discount_amount  DECIMAL(15, 2)      DEFAULT 0,
     tax_amount       DECIMAL(15, 2)      DEFAULT 0,
     payment_status   payment_status_enum DEFAULT 'Pending',
-    location_id      BIGSERIAL      NOT NULL REFERENCES locations (location_id)
+    location_id      BIGSERIAL      NOT NULL REFERENCES locations (location_id),
+    -- Idempotency key for POST /api/sales - see V4__sales_recording.sql
+    client_event_id  VARCHAR(100) UNIQUE
 );
 
 CREATE TABLE sale_items

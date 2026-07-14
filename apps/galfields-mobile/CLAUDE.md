@@ -32,6 +32,10 @@ Routes live under `app/`. expo-router turns filenames into URL segments automati
 
 The `unstable_settings.anchor = '(tabs)'` in the root layout makes the tabs group the default deep-link anchor.
 
+Beyond the tabs, top-level auth-gated route groups are registered in `app/_layout.tsx`'s Stack: `login`, `products`, `settings`, `reports`. Each follows the same shape — a `<Name>Layout` in `app/<name>/_layout.tsx` that redirects to `/login` when `!isAuthenticated` (see `contexts/auth-context.tsx`), a thin per-screen route file that just renders a component from `components/<name>/`, and a hub screen (`index.tsx`) listing sub-screens as cards (see `app/settings/index.tsx` or `app/reports/index.tsx`). `services/<name>-api.ts` holds the fetch calls for that feature (`apiBaseUrl()` + `parseApiErrorMessage`, see `services/api-base-url.ts`/`services/api-error.ts`) — copy an existing one (`services/reports-api.ts` is the most recent) rather than inventing a new API-client shape.
+
+`app/reports/` is a read-only dashboard over `backend/pos`'s `GET /api/reports/*` endpoints (see that repo's CLAUDE.md for exactly what each one returns) — sales summary, cash summary, sales by payment method, current inventory, low stock, and invoice history/detail. It depends on the desktop POS (`apps/galfield-pos`) actually reporting sales to the cloud via `POST /api/sales` — before that existed, these screens have nothing real to show.
+
 ### Theming
 
 - `constants/theme.ts` — `Colors` (light/dark palettes) and `Fonts` (platform-specific font stacks)

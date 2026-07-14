@@ -19,6 +19,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="products" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="reports" />
           </Stack>
           <StatusBar style="auto" />
         </ThemeProvider>
