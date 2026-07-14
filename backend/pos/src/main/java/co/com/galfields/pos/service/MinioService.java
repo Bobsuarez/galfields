@@ -5,6 +5,7 @@ import co.com.galfields.pos.entity.PaymentMethod;
 import co.com.galfields.pos.entity.Product;
 import co.com.galfields.pos.entity.ProductVariant;
 import co.com.galfields.pos.exception.StorageException;
+import co.com.galfields.pos.util.CompressedImage;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
@@ -15,7 +16,6 @@ import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -27,23 +27,23 @@ public class MinioService {
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
 
-    public String uploadProductImage(Product product, MultipartFile originalFile, byte[] imageData) {
+    public String uploadProductImage(Product product, CompressedImage image) {
         String folder = "%s/%s/%s".formatted(OBJECT_KEY_PREFIX, categorySlugOf(product), slugify(product.getName()));
-        return upload(folder, originalFile, imageData);
+        return upload(folder, image);
     }
 
-    public String uploadVariantImage(Product product, ProductVariant variant, MultipartFile originalFile, byte[] imageData) {
+    public String uploadVariantImage(Product product, ProductVariant variant, CompressedImage image) {
         String folder = "%s/%s/%s/variants/%s".formatted(
                 OBJECT_KEY_PREFIX, categorySlugOf(product), slugify(product.getName()), slugify(variant.getSku()));
-        return upload(folder, originalFile, imageData);
+        return upload(folder, image);
     }
 
     /**
      * files/payment_method/&lt;nombre-slug&gt;/&lt;uuid&gt;.ext
      */
-    public String uploadPaymentMethodImage(PaymentMethod paymentMethod, MultipartFile originalFile, byte[] imageData) {
+    public String uploadPaymentMethodImage(PaymentMethod paymentMethod, CompressedImage image) {
         String folder = "%s/payment_method/%s".formatted(OBJECT_KEY_PREFIX, slugify(paymentMethod.getMethodName()));
-        return upload(folder, originalFile, imageData);
+        return upload(folder, image);
     }
 
     /**
@@ -72,26 +72,19 @@ public class MinioService {
         }
     }
 
-    private String upload(String folder, MultipartFile originalFile, byte[] imageData) {
-        String objectKey = "%s/%s%s".formatted(folder, UUID.randomUUID(), extensionOf(originalFile.getOriginalFilename()));
-        try (var inputStream = new ByteArrayInputStream(imageData)) {
+    private String upload(String folder, CompressedImage image) {
+        String objectKey = "%s/%s%s".formatted(folder, UUID.randomUUID(), image.extension());
+        try (var inputStream = new ByteArrayInputStream(image.data())) {
             minioClient.putObject(PutObjectArgs.builder()
                     .bucket(minioProperties.bucket())
                     .object(objectKey)
-                    .stream(inputStream, imageData.length, -1)
-                    .contentType(originalFile.getContentType())
+                    .stream(inputStream, image.data().length, -1)
+                    .contentType(image.contentType())
                     .build());
         } catch (Exception e) {
             throw new StorageException("Failed to upload image to MinIO", e);
         }
         return objectKey;
-    }
-
-    private String extensionOf(String originalFilename) {
-        if (originalFilename != null && originalFilename.contains(".")) {
-            return originalFilename.substring(originalFilename.lastIndexOf('.'));
-        }
-        return "";
     }
 
     private String categorySlugOf(Product product) {

@@ -25,6 +25,7 @@ import co.com.galfields.pos.repository.InventoryRepository;
 import co.com.galfields.pos.repository.LocationRepository;
 import co.com.galfields.pos.repository.ProductRepository;
 import co.com.galfields.pos.repository.ProductVariantRepository;
+import co.com.galfields.pos.util.CompressedImage;
 import co.com.galfields.pos.util.ImageCompressor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -302,8 +303,8 @@ public class ProductService {
     }
 
     private void attachProductImage(Product product, MultipartFile file) {
-        byte[] compressed = imageCompressor.compress(file);
-        String objectKey = minioService.uploadProductImage(product, file, compressed);
+        CompressedImage compressed = imageCompressor.compress(file);
+        String objectKey = minioService.uploadProductImage(product, compressed);
         AttachFile attachFile = saveAttachFile(file, compressed, objectKey);
 
         ProductImage productImage = product.getImage();
@@ -324,8 +325,8 @@ public class ProductService {
     }
 
     private void attachVariantImage(Product product, ProductVariant variant, MultipartFile file) {
-        byte[] compressed = imageCompressor.compress(file);
-        String objectKey = minioService.uploadVariantImage(product, variant, file, compressed);
+        CompressedImage compressed = imageCompressor.compress(file);
+        String objectKey = minioService.uploadVariantImage(product, variant, compressed);
         AttachFile attachFile = saveAttachFile(file, compressed, objectKey);
 
         ProductVariantImage variantImage = variant.getImage();
@@ -345,12 +346,12 @@ public class ProductService {
         }
     }
 
-    private AttachFile saveAttachFile(MultipartFile file, byte[] data, String objectKey) {
+    private AttachFile saveAttachFile(MultipartFile file, CompressedImage image, String objectKey) {
         AttachFile attachFile = new AttachFile();
         attachFile.setName(file.getOriginalFilename() != null ? file.getOriginalFilename() : objectKey);
         attachFile.setUrl(objectKey);
-        attachFile.setMimeType(file.getContentType());
-        attachFile.setSize(data.length);
+        attachFile.setMimeType(image.contentType());
+        attachFile.setSize(image.data().length);
         return attachFileRepository.save(attachFile);
     }
 

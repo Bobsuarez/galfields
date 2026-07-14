@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { useActiveSale }    from './composables/useActiveSale'
 import { useBarcodeScanner } from './composables/useBarcodeScanner'
 import { useCheckout }      from '../invoices/composables/useCheckout'
@@ -50,6 +51,16 @@ function onProductAdded(product: Product) {
 
 const { config } = useAppConfig()
 
+const catalogRef = ref<InstanceType<typeof ProductCatalog> | null>(null)
+
+// PaymentMethodModal already gets the full `paymentMethods` list (it needs
+// every method's url to render its own grid) — ActiveSale only shows the
+// one currently selected, so it just needs that one method's url looked up
+// by name, not the whole list.
+const paymentMethodUrl = computed(
+  () => paymentMethods.value.find(m => m.name === paymentMethod.value)?.url ?? '',
+)
+
 const {
   showModal:    showInvoiceModal,
   isProcessing: isCheckoutProcessing,
@@ -59,7 +70,13 @@ const {
   requestCheckout,
   cancelCheckout,
   confirmCheckout,
-} = useCheckout(newSale)
+} = useCheckout(() => {
+  newSale()
+  // Stock/active-state just changed in the DB (create_sale decremented it) —
+  // re-fetch so ProductCard reflects it instead of showing stale numbers
+  // until the POS view happens to remount.
+  catalogRef.value?.reload()
+})
 
 function onCheckout() {
   requestCheckout({
@@ -87,7 +104,7 @@ function onCheckout() {
     </div>
 
     <div class="pos-main">
-      <ProductCatalog @product-added="onProductAdded" />
+      <ProductCatalog ref="catalogRef" @product-added="onProductAdded" />
       <ActiveSale
         :cart-items="cartItems"
         :subtotal="subtotal"
@@ -96,6 +113,7 @@ function onCheckout() {
         :amount-received="amountReceived"
         :change-due="changeDue"
         :payment-method="paymentMethod"
+        :payment-method-url="paymentMethodUrl"
         :can-checkout="canCheckout"
         @update:amount-received="amountReceived = $event"
         @edit-payment-method="openPaymentMethodModal"

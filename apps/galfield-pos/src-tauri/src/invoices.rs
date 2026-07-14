@@ -3,6 +3,7 @@ use std::io::Write;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, State};
 
+use crate::logging;
 use crate::peripheral_manager::DeviceStatusPayload;
 use crate::AppState;
 
@@ -38,6 +39,9 @@ pub fn create_sale(
     amount_received: f64,
     invoice_prefix: String,
 ) -> Result<CreateSaleResult, String> {
+    const LOC: &str = "invoices::create_sale";
+    logging::step(LOC, format!("iniciando venta: {} líneas, total {}", items.len(), total));
+
     // A cashier who doesn't use the cash calculator sends 0 — treat that as
     // "exact payment, no change" instead of recording a bogus negative
     // change_due for sales that never used it.
@@ -71,12 +75,15 @@ pub fn create_sale(
                 .map_err(|e| format!("Producto {} no encontrado: {}", item.product_id, e))?;
 
             if (item.quantity as f64) > current_stock {
-                return Err(format!(
+                let msg = format!(
                     "Stock insuficiente para \"{}\": disponible {}, solicitado {}",
                     product_name, current_stock, item.quantity
-                ));
+                );
+                logging::step(LOC, format!("validación de stock falló: {}", msg));
+                return Err(msg);
             }
         }
+        logging::step(LOC, "validación de stock OK");
     }
 
     // Generated up front so it exists from the very first insert - this is
@@ -122,6 +129,7 @@ pub fn create_sale(
         .map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
+    logging::step(LOC, format!("venta {} confirmada", sale_id));
 
     Ok(CreateSaleResult {
         sale_id,

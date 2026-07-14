@@ -12,6 +12,9 @@ import { invoke } from '@tauri-apps/api/core'
 export interface PaymentMethod {
   id: number
   name: string
+  /** Empty string when the cloud has no image for this method — components
+   *  fall back to `getPaymentMethodEmoji` in that case. */
+  url: string
 }
 
 // Icons aren't stored in the DB (no icon column) — this is presentation-only

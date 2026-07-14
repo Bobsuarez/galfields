@@ -6,8 +6,12 @@ use crate::AppState;
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaymentMethodRow {
-    pub id: i64,
+    pub id:   i64,
     pub name: String,
+    /// Empty string when the cloud has no image for this method (see
+    /// `catalog_sync::sync_payment_methods`) — the frontend falls back to a
+    /// hardcoded emoji in that case (`getPaymentMethodEmoji`).
+    pub url:  String,
 }
 
 /// Only `is_active = 1` rows — a payment method deactivated from the cloud
@@ -19,12 +23,12 @@ pub fn list_payment_methods(state: State<AppState>) -> Result<Vec<PaymentMethodR
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .conn
-        .prepare("SELECT id, name FROM payment_method WHERE is_active = 1 ORDER BY id")
+        .prepare("SELECT id, name, COALESCE(url, '') FROM payment_method WHERE is_active = 1 ORDER BY id")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
         .query_map([], |row| {
-            Ok(PaymentMethodRow { id: row.get(0)?, name: row.get(1)? })
+            Ok(PaymentMethodRow { id: row.get(0)?, name: row.get(1)?, url: row.get(2)? })
         })
         .map_err(|e| e.to_string())?;
 

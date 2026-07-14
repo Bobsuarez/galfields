@@ -16,8 +16,8 @@ export default function ProductsScreen() {
   const isSearching = query.trim().length > 0;
   const displayed = isSearching ? searchProducts(query) : products;
 
-  const handleProductPress = (_product: Product) => {
-    // TODO: Navigate to product detail screen
+  const handleProductPress = (product: Product) => {
+    router.push({ pathname: '/products/[id]/edit', params: { id: product.id } });
   };
 
   return (

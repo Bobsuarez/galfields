@@ -11,6 +11,14 @@ const emit = defineEmits<{ (e: 'add', product: Product): void }>()
 // backend — see CLAUDE.md's Image URLs / CDN note on the backend side).
 const imageFailed = ref(false)
 
+// The webview swallows the real network error (DNS/TLS/connection) by
+// default - this is what makes it visible in DevTools (right-click →
+// Inspeccionar → Console/Network) instead of a silent emoji fallback.
+function handleImageError() {
+  console.error(`[ProductCard] failed to load product image: ${props.product.imagePath}`)
+  imageFailed.value = true
+}
+
 // Deactivation always wins over a stock badge - it's a different, more
 // fundamental reason the product can't be sold. Mirrors the precedence
 // InventoryTable.vue/ProductDetail.vue already use.
@@ -66,7 +74,8 @@ function categoryEmoji(category: string): string {
         :src="product.imagePath"
         class="product-photo"
         alt=""
-        @error="imageFailed = true"
+        referrerpolicy="no-referrer"
+        @error="handleImageError"
       />
       <div v-else class="product-emoji-wrap" :style="{ background: CATEGORY_BG[product.category] ?? 'rgba(242,141,53,0.1)' }">
         <span class="product-emoji">{{ categoryEmoji(product.category) }}</span>

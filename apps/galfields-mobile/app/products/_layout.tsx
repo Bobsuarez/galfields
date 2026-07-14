@@ -12,6 +12,7 @@ export default function ProductsLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="add" />
+      <Stack.Screen name="[id]/edit" />
       <Stack.Screen name="success" options={{ gestureEnabled: false }} />
     </Stack>
   );

@@ -6,7 +6,11 @@ import AppIcon from '../../../components/shared/AppIcon.vue'
 
 const emit = defineEmits<{ (e: 'product-added', product: Product): void }>()
 
-const { categories, activeCategory, searchQuery, filteredProducts, isLoading, selectCategory } = useProductCatalog()
+const { categories, activeCategory, searchQuery, filteredProducts, isLoading, selectCategory, loadProducts } = useProductCatalog()
+
+// Exposed so POSView can re-fetch stock/active-state right after checkout,
+// since useProducts() only loads once on mount otherwise (see CLAUDE.md).
+defineExpose({ reload: loadProducts })
 </script>
 
 <template>
