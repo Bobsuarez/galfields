@@ -1,7 +1,6 @@
 import { Pressable, StyleSheet } from 'react-native';
-import { Redirect, Tabs, router, type Href } from 'expo-router';
+import { Redirect, Tabs, router } from 'expo-router';
 import { type BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -9,48 +8,21 @@ import { useAuth } from '@/contexts/auth-context';
 import { Brand, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-// Elevated center button for the sale/scan tab — same haptic + navigation
-// behavior as a normal tab button (forwards to the real onPress from
-// react-navigation), just styled as a raised FAB.
-function ScanFab({ ref: _ref, onPress, ...rest }: BottomTabBarButtonProps) {
-  const handlePress: NonNullable<BottomTabBarButtonProps['onPress']> = e => {
+// The scan FAB bypasses the scan tab and goes directly to products/add,
+// where the barcode scanner is integrated into the product form.
+function ScanFab(_props: BottomTabBarButtonProps) {
+  const handlePress = () => {
     if (process.env.EXPO_OS === 'ios') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    onPress?.(e);
+    router.push('/products/add');
   };
 
   return (
-    <Pressable {...rest} onPress={handlePress} style={styles.scanFab} accessibilityRole="button">
+    <Pressable onPress={handlePress} style={styles.scanFab} accessibilityRole="button">
       <IconSymbol name="barcode.viewfinder" size={28} color="#fff" />
     </Pressable>
   );
-}
-
-/**
- * "products" and "settings" are thin `<Redirect>` files whose only job is to
- * give those routes a tab bar entry — the real screens live in their own
- * top-level stacks (app/products, app/settings), outside the (tabs) group.
- * If we let a normal tab press focus that route, expo-router's <Redirect>
- * fires `router.replace()`, which replaces the whole "(tabs)" entry in the
- * root stack's history with "/products" — leaving no previous screen to go
- * back to, so the back button crashes the navigator. Pushing directly here
- * bypasses the in-tab redirect entirely and keeps normal back-navigation.
- */
-function externalTabButton(href: Href) {
-  return function ExternalTabButton(props: BottomTabBarButtonProps) {
-    return (
-      <PlatformPressable
-        {...props}
-        onPress={() => {
-          if (process.env.EXPO_OS === 'ios') {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
-          router.push(href);
-        }}
-      />
-    );
-  };
 }
 
 export default function TabLayout() {
@@ -69,7 +41,6 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false,
         tabBarActiveTintColor: Brand.orange,
         tabBarInactiveTintColor: colors.tabIconDefault,
         tabBarButton: HapticTab,
@@ -84,60 +55,35 @@ export default function TabLayout() {
           shadowRadius: 12,
           elevation: 20,
         },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
       <Tabs.Screen
-        name="reports"
+        name="index"
         options={{
-          title: 'Reportes',
+          title: 'Inicio',
           tabBarIcon: ({ color }) => (
-            <IconSymbol name="chart.bar.fill" size={26} color={color} />
+            <IconSymbol name="house.fill" size={26} color={color} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="products"
-        options={{
-          title: 'Productos',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol name="shippingbox.fill" size={26} color={color} />
-          ),
-          tabBarButton: externalTabButton('/products'),
         }}
       />
       <Tabs.Screen
         name="scan"
         options={{
-          title: 'Registrar venta',
+          title: '',
           tabBarButton: ScanFab,
         }}
       />
       <Tabs.Screen
-        name="inventory"
+        name="profile"
         options={{
-          title: 'Inventario',
+          title: 'Perfil',
           tabBarIcon: ({ color }) => (
-            <IconSymbol name="tray.fill" size={26} color={color} />
+            <IconSymbol name="person.fill" size={26} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Configuración',
-          tabBarIcon: ({ color }) => (
-            <IconSymbol name="gearshape.fill" size={26} color={color} />
-          ),
-          tabBarButton: externalTabButton('/settings'),
-        }}
-      />
-
-      {/* Kept mounted but hidden from the tab bar. "index" stays the
-          default screen for the (tabs) group (see unstable_settings.anchor
-          in the root layout); "profile" and "explore" are no longer linked
-          from anywhere in the UI now that the footer dropped Inicio/Perfil. */}
-      <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="profile" options={{ href: null }} />
+      {/* Hide legacy explore screen from tab bar */}
       <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
