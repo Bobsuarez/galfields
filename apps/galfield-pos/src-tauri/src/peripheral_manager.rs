@@ -36,6 +36,73 @@ use crate::AppState;
 /// flag, matching the processor thread's `recv_timeout` cadence below.
 const POLL_TIMEOUT_MS: i32 = 150;
 
+/// Common default for USB/RS-232 barcode scanners running in serial
+/// emulation mode. Only used on Windows (see `open_port` below) — unverified
+/// against real Windows hardware; if a deployed scanner needs a different
+/// rate, this is the constant to change.
+#[cfg(windows)]
+const WINDOWS_BAUD_RATE: u32 = 9600;
+
+// ── Port I/O: platform-specific blocking-read-with-timeout ─────────────────
+//
+// Unix: opens `port` as a plain file, and `wait_for_data` below uses a
+// raw-fd `poll()` so the reader thread can wake up every POLL_TIMEOUT_MS to
+// re-check the stop flag instead of blocking indefinitely on `read()` — see
+// the reader loop's comment for why that matters. Proven against real
+// scanner hardware; left exactly as it always was.
+//
+// Windows: `std::fs::File` on a COM port has no read-timeout support
+// without hand-rolling a raw `SetCommTimeouts` Win32 call. Instead this
+// reuses the `serialport` crate (already a dependency — see
+// `peripherals.rs`'s `list_serial_ports`), which configures the port's
+// timeouts correctly under the hood: `wait_for_data` becomes a no-op and
+// `read_until` itself blocks up to `POLL_TIMEOUT_MS` before returning
+// `ErrorKind::TimedOut`, which the reader loop treats as "no data yet",
+// same as a Unix poll() timeout.
+#[cfg(unix)]
+type PortHandle = std::fs::File;
+#[cfg(windows)]
+type PortHandle = Box<dyn serialport::SerialPort>;
+
+fn open_port(path: &str) -> std::io::Result<PortHandle> {
+    #[cfg(unix)]
+    {
+        std::fs::File::open(path)
+    }
+    #[cfg(windows)]
+    {
+        serialport::new(path, WINDOWS_BAUD_RATE)
+            .timeout(Duration::from_millis(POLL_TIMEOUT_MS as u64))
+            .open()
+            .map_err(|e| std::io::Error::other(e.to_string()))
+    }
+}
+
+/// `Ok(true)` — data is ready, read it now. `Ok(false)` — timed out, loop
+/// back and re-check the stop flag. `Err` — the wait itself failed.
+fn wait_for_data(#[allow(unused_variables)] port: &PortHandle, #[allow(unused_variables)] timeout_ms: i32) -> Result<bool, String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::io::AsRawFd;
+        let fd = port.as_raw_fd();
+        let mut pfd = libc::pollfd { fd, events: libc::POLLIN, revents: 0 };
+        let ready = unsafe { libc::poll(&mut pfd, 1, timeout_ms) };
+        if ready > 0 {
+            Ok(true)
+        } else if ready == 0 {
+            Ok(false)
+        } else {
+            Err("poll() failed".to_string())
+        }
+    }
+    #[cfg(windows)]
+    {
+        // The port's own read timeout (configured in `open_port`) does this
+        // job instead — see the module comment above.
+        Ok(true)
+    }
+}
+
 // ── Event payload types ───────────────────────────────────────────────────────
 
 /// Matches the TypeScript `Product` interface so the frontend can add it to the
@@ -126,7 +193,7 @@ fn spawn_barcode_listener(
     std::thread::Builder::new()
         .name(format!("peripheral-barcode-reader-{}", port_reader))
         .spawn(move || {
-            let file = match std::fs::File::open(&port_reader) {
+            let file = match open_port(&port_reader) {
                 Ok(f) => f,
                 Err(e) => {
                     logging::step(
@@ -148,7 +215,6 @@ fn spawn_barcode_listener(
                 format!("reader started on {}", port_reader),
             );
 
-            let fd = std::os::unix::io::AsRawFd::as_raw_fd(&file);
             let mut reader = std::io::BufReader::new(file);
             let mut buf: Vec<u8> = Vec::new();
 
@@ -174,17 +240,16 @@ fn spawn_barcode_listener(
                     break;
                 }
 
-                let mut pfd = libc::pollfd { fd, events: libc::POLLIN, revents: 0 };
-                let ready = unsafe { libc::poll(&mut pfd, 1, POLL_TIMEOUT_MS) };
-                if ready == 0 {
-                    continue; // timeout, no data yet — loop back and re-check stop
-                }
-                if ready < 0 {
-                    logging::step(
-                        "peripheral_manager::spawn_barcode_listener",
-                        format!("poll() failed on {}", port_reader),
-                    );
-                    break;
+                match wait_for_data(reader.get_ref(), POLL_TIMEOUT_MS) {
+                    Ok(false) => continue, // timeout, no data yet — loop back and re-check stop
+                    Ok(true) => {}
+                    Err(e) => {
+                        logging::step(
+                            "peripheral_manager::spawn_barcode_listener",
+                            format!("{} on {}", e, port_reader),
+                        );
+                        break;
+                    }
                 }
 
                 buf.clear();
@@ -220,6 +285,10 @@ fn spawn_barcode_listener(
                             break; // processor dropped receiver → stop
                         }
                     }
+                    // Windows: `wait_for_data` is a no-op there, so this is
+                    // where the port's own read timeout actually surfaces —
+                    // same "no data yet" case as a Unix poll() timeout above.
+                    Err(e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
                     Err(e) => {
                         logging::step(
                             "peripheral_manager::spawn_barcode_listener",
