@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use crate::http_client::{self, API_BASE_URL};
+use crate::http_client;
 use crate::logging;
 use crate::AppState;
 
@@ -177,6 +177,11 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
         }
     });
 
+    let api_base_url = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        http_client::api_base_url(&db)
+    };
+
     let mut pushed_count: i64 = 0;
     let mut error: Option<String> = None;
 
@@ -212,7 +217,7 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
             total_amount: sale.total,
         };
 
-        let response = http_client::post_json(&format!("{}/api/sales", API_BASE_URL), &payload).await;
+        let response = http_client::post_json(&format!("{}/api/sales", api_base_url), &payload).await;
 
         match response {
             Ok(res) if res.is_success() => {

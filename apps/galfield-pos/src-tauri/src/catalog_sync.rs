@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::http_client::{self, API_BASE_URL};
+use crate::http_client;
 use crate::logging;
 use crate::AppState;
 
@@ -43,7 +43,12 @@ pub async fn sync_categories(state: State<'_, AppState>) -> Result<i64, String> 
     const LOC: &str = "catalog_sync::sync_categories";
     logging::step(LOC, "iniciando sincronización de categorías");
 
-    let response = http_client::get(&format!("{}/api/categories", API_BASE_URL)).await?;
+    let api_base_url = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        http_client::api_base_url(&db)
+    };
+
+    let response = http_client::get(&format!("{}/api/categories", api_base_url)).await?;
 
     if !response.is_success() {
         return Err(format!(
@@ -97,7 +102,12 @@ pub async fn sync_payment_methods(
     const LOC: &str = "catalog_sync::sync_payment_methods";
     logging::step(LOC, "iniciando sincronización de métodos de pago");
 
-    let response = http_client::get(&format!("{}/api/payment-methods", API_BASE_URL)).await?;
+    let api_base_url = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        http_client::api_base_url(&db)
+    };
+
+    let response = http_client::get(&format!("{}/api/payment-methods", api_base_url)).await?;
 
     if !response.is_success() {
         return Err(format!(
@@ -116,7 +126,7 @@ pub async fn sync_payment_methods(
         db.conn
             .execute(
                 "INSERT INTO payment_method (name, url, is_active, remote_payment_method_id) VALUES (?1, ?2, ?3, ?4)
-                 ON CONFLICT(name) DO UPDATE SET is_active = excluded.is_active, remote_payment_method_id = excluded.remote_payment_method_id",
+                 ON CONFLICT(name) DO UPDATE SET url = excluded.url, is_active = excluded.is_active, remote_payment_method_id = excluded.remote_payment_method_id",
                 rusqlite::params![method.method_name, image_path, method.active as i32, method.payment_method_id],
             )
             .map_err(|e| {

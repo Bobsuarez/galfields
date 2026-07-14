@@ -30,6 +30,12 @@ const SETTINGS_ITEMS = [
     subtitle: 'Gestionar métodos de pago disponibles',
     href: '/settings/payment-methods' as const,
   },
+  {
+    icon: 'server.rack',
+    label: 'Servidor',
+    subtitle: 'URL del backend al que se conecta la app',
+    href: '/settings/server' as const,
+  },
 ] as const;
 
 export default function SettingsScreen() {

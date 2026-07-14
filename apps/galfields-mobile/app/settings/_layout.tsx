@@ -14,6 +14,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="categories" />
       <Stack.Screen name="brands" />
       <Stack.Screen name="locations" />
+      <Stack.Screen name="server" />
     </Stack>
   );
 }

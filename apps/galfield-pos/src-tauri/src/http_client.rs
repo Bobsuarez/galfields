@@ -16,14 +16,35 @@ use std::sync::OnceLock;
 use reqwest::StatusCode;
 use serde::Serialize;
 
+use crate::db::Database;
 use crate::logging;
 
-pub const API_BASE_URL: &str = "https://galfields.kinforgeworks.com";
+/// Only used if `sync.api_base_url` is somehow missing from `app_settings`
+/// (a very old local DB from before migration `007_api_base_url_setting`
+/// that hasn't run yet) — see `api_base_url` below for the real source.
+pub const DEFAULT_API_BASE_URL: &str = "https://galfields.kinforgeworks.com";
 
 static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 fn client() -> &'static reqwest::Client {
     CLIENT.get_or_init(reqwest::Client::new)
+}
+
+/// Reads the cloud API base URL from `app_settings` (`sync.api_base_url`,
+/// editable from Configuración → Reglas y Sincronización) instead of a
+/// hardcoded constant, so one installation can point at a different backend
+/// without a rebuild. Callers re-read this on every sync run instead of
+/// caching it — same reasoning `sales_sync.rs`'s background loop re-reads
+/// `sync.sales_retry_minutes` every wake — so changing it in Configuración
+/// takes effect on the next sync, not just after restarting the app.
+pub fn api_base_url(db: &Database) -> String {
+    db.conn
+        .query_row(
+            "SELECT value_property FROM app_settings WHERE key_property = 'sync.api_base_url'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_else(|_| DEFAULT_API_BASE_URL.to_string())
 }
 
 pub struct HttpResponse {

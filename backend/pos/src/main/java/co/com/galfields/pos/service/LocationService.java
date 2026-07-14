@@ -30,7 +30,7 @@ public class LocationService {
 
     @Transactional(readOnly = true)
     public List<LocationResponse> listLocations() {
-        return locationRepository.findAll().stream()
+        return locationRepository.findAllByOrderByNameAsc().stream()
                 .map(this::toResponse)
                 .toList();
     }

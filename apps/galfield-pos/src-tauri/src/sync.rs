@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::http_client::API_BASE_URL;
 use crate::logging;
 use crate::AppState;
 
@@ -137,6 +136,12 @@ pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, St
     const LOC: &str = "sync::sync_products";
     logging::step(LOC, "iniciando sincronización de productos");
 
+    // Scoped so the MutexGuard drops before the loop below, which awaits.
+    let api_base_url = {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        crate::http_client::api_base_url(&db)
+    };
+
     let mut all_rows: Vec<LocalProductRow> = Vec::new();
     let mut products_fetched: i64 = 0;
     let mut page: u32 = 0;
@@ -144,7 +149,7 @@ pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, St
     loop {
         let url = format!(
             "{}/api/products?sort=name,asc&page={}&size={}",
-            API_BASE_URL, page, PAGE_SIZE
+            api_base_url, page, PAGE_SIZE
         );
 
         let response = crate::http_client::get(&url).await?;
