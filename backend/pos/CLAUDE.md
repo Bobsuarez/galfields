@@ -91,6 +91,8 @@ On update, variants are upserted by `sku` against the product's existing variant
 
 All four: `GET` lists all or fetches by id, `DELETE` hard-deletes (none of `categories`/`brands`/`locations` have an `is_active`/soft-delete column, unlike products; `payment_methods` has one but `DELETE` still hard-deletes rather than flipping it). None of `categories.name` / `brands.name` / `locations.name` / `payment_methods.method_name` has a `UNIQUE` constraint in the DB, so duplicate names are allowed on purpose (no app-level uniqueness check).
 
+**List ordering:** all four `GET` (list) endpoints return rows alphabetically by name — `findAllByOrderByNameAsc()` on `CategoryRepository`/`BrandRepository`/`LocationRepository`, `findAllByOrderByMethodNameAsc()` on `PaymentMethodRepository` (derived Spring Data query methods, not a manual `@Query`). Plain `findAll()` has no guaranteed order in Postgres — don't revert to it in these four services' `list*` methods, or the list order goes back to being whatever the DB feels like. `ProductController#list` is unrelated to this — it's paginated and already has its own explicit default sort (`createdAt,desc`, client-overridable via `SORTABLE_PROPERTIES`, see above).
+
 Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON DELETE` clause → default `RESTRICT`) returns a clean 409 instead of a raw 500: `GlobalExceptionHandler` catches `DataIntegrityViolationException` generically, so this covers any FK-constrained delete across all four, and any future one.
 
 ### Payment method image

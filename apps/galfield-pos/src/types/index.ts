@@ -99,6 +99,11 @@ export interface ConfigSettings {
      * cloud (minutes) — deliberately separate from priceSyncHours, which
      * governs pulling the catalog down (see sales_sync.rs). */
     salesRetryMinutes: number
+    /** Cloud API base URL (e.g. "https://galfields.kinforgeworks.com") —
+     * read fresh from app_settings on every sync call in Rust
+     * (http_client::api_base_url), not cached, so changing it here takes
+     * effect on the next sync without restarting the app. */
+    apiBaseUrl: string
   }
   styles: {
     theme: 'dark' | 'light' | 'auto'

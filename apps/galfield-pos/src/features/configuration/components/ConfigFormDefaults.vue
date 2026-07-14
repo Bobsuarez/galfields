@@ -90,6 +90,16 @@ async function browseInvoiceFolder() {
       <h3 class="card-title">Reglas y Sincronización</h3>
 
       <div class="field">
+        <label class="field-label">URL del servidor (nube)</label>
+        <input
+          v-model.trim="settings.sync.apiBaseUrl"
+          type="url"
+          class="field-input"
+          placeholder="https://galfields.kinforgeworks.com"
+        />
+        <p class="field-hint">A dónde se conecta esta terminal para sincronizar catálogo y reportar ventas. Solo cámbialo si sabes lo que haces — un valor incorrecto rompe la sincronización.</p>
+      </div>
+      <div class="field">
         <label class="field-label">Intervalo de Respaldo</label>
         <select v-model="settings.sync.backupInterval" class="field-input">
           <option value="15min">Cada 15 minutos</option>
@@ -161,6 +171,12 @@ async function browseInvoiceFolder() {
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.4px;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 0;
 }
 
 .field-input {

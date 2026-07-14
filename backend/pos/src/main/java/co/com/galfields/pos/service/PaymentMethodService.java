@@ -45,7 +45,7 @@ public class PaymentMethodService {
 
     @Transactional(readOnly = true)
     public List<PaymentMethodResponse> listPaymentMethods() {
-        return paymentMethodRepository.findAll().stream()
+        return paymentMethodRepository.findAllByOrderByMethodNameAsc().stream()
                 .map(this::toResponse)
                 .toList();
     }

@@ -30,7 +30,7 @@ public class BrandService {
 
     @Transactional(readOnly = true)
     public List<BrandResponse> listBrands() {
-        return brandRepository.findAll().stream()
+        return brandRepository.findAllByOrderByNameAsc().stream()
                 .map(this::toResponse)
                 .toList();
     }

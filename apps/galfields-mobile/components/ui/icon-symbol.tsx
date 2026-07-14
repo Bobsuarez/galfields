@@ -58,6 +58,8 @@ const MAPPING = {
   'banknote.fill': 'payments',
   'exclamationmark.triangle.fill': 'warning',
   'doc.text.fill': 'receipt',
+  // Server / connection settings
+  'server.rack': 'dns',
 } as IconMapping;
 
 /**

@@ -30,7 +30,7 @@ public class CategoryService {
 
     @Transactional(readOnly = true)
     public List<CategoryResponse> listCategories() {
-        return categoryRepository.findAll().stream()
+        return categoryRepository.findAllByOrderByNameAsc().stream()
                 .map(this::toResponse)
                 .toList();
     }

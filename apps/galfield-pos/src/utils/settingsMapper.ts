@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: ConfigSettings = {
     priceSyncHours: 24,
     invoicePrefix: 'FAC-',
     salesRetryMinutes: 5,
+    apiBaseUrl: 'https://galfields.kinforgeworks.com',
   },
   styles: {
     theme: 'dark',
@@ -88,6 +89,7 @@ export function applyRecord(target: ConfigSettings, record: Record<string, strin
   target.sync.priceSyncHours   = num('sync.price_sync_hours',     target.sync.priceSyncHours)
   target.sync.invoicePrefix    = str('sync.invoice_prefix',       target.sync.invoicePrefix)
   target.sync.salesRetryMinutes = num('sync.sales_retry_minutes', target.sync.salesRetryMinutes)
+  target.sync.apiBaseUrl       = str('sync.api_base_url',         target.sync.apiBaseUrl)
 
   target.styles.theme         = str('styles.theme',          target.styles.theme) as ConfigSettings['styles']['theme']
   target.styles.primaryColor  = str('styles.primary_color',  target.styles.primaryColor)
@@ -136,6 +138,7 @@ export function settingsToRecord(s: ConfigSettings): Record<string, string> {
     'sync.price_sync_hours':    String(s.sync.priceSyncHours),
     'sync.invoice_prefix':      s.sync.invoicePrefix,
     'sync.sales_retry_minutes': String(s.sync.salesRetryMinutes),
+    'sync.api_base_url':        s.sync.apiBaseUrl,
 
     'styles.theme':          s.styles.theme,
     'styles.primary_color':  s.styles.primaryColor,
