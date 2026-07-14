@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -80,15 +81,27 @@ public class ProductController {
 
     @GetMapping
     public PagedModel<ProductResponse> list(
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
+            @RequestParam(defaultValue = "false") boolean includeInactive
     ) {
-        Page<ProductResponse> page =  productService.listProducts(remapSort(pageable));
+        Page<ProductResponse> page = productService.listProducts(remapSort(pageable), includeInactive);
         return new PagedModel<>(page);
     }
 
     @GetMapping("/{productId}")
     public ProductResponse get(@PathVariable Long productId) {
         return productService.getProduct(productId);
+    }
+
+    /**
+     * Reactivates a product and all its variants — the counterpart to
+     * {@code DELETE}'s soft-deactivate below. Products found here don't
+     * need to already be inactive; reactivating an already-active product
+     * is a harmless no-op.
+     */
+    @PutMapping("/{productId}/activate")
+    public ProductResponse activate(@PathVariable Long productId) {
+        return productService.activateProduct(productId);
     }
 
     @PutMapping(value = "/{productId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

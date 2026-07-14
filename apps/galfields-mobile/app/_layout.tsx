@@ -20,6 +20,7 @@ export default function RootLayout() {
             <Stack.Screen name="products" />
             <Stack.Screen name="settings" />
             <Stack.Screen name="reports" />
+            <Stack.Screen name="inventory" />
           </Stack>
           <StatusBar style="auto" />
         </ThemeProvider>

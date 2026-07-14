@@ -26,7 +26,7 @@ const MENU_ITEMS = [
     icon: 'tray.fill',
     label: 'Inventario',
     subtitle: 'Ver stock\nactual',
-    href: null,
+    href: '/inventory' as const,
   },
   {
     icon: 'cart.fill',

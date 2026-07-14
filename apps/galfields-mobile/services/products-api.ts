@@ -70,9 +70,16 @@ export function toVariantDraft(variant: RemoteVariant): ProductVariantDraft {
 
 /** GET /api/products is paginated (default size 20) — sorted by name so the
  * list reads predictably; see ProductController's SORTABLE_PROPERTIES for
- * the other keys it accepts. */
-export async function fetchProducts(page = 0, size = 20): Promise<ProductsPage> {
-  const params = new URLSearchParams({ page: String(page), size: String(size), sort: 'name,asc' });
+ * the other keys it accepts. `includeInactive` is only ever `true` from the
+ * Inventario module (see `app/inventory/`) — the regular Products catalog
+ * screen deliberately never offers a deactivated product for sale. */
+export async function fetchProducts(page = 0, size = 20, includeInactive = false): Promise<ProductsPage> {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+    sort: 'name,asc',
+    includeInactive: String(includeInactive),
+  });
   const url = `${apiBaseUrl()}/api/products?${params.toString()}`;
 
   const response = await fetch(url);
@@ -193,5 +200,37 @@ export async function updateProduct(productId: string, payload: ProductInput): P
 
   const result: RemoteProduct = await response.json();
   console.log('[products-api] updated product', result.productId, `variants: ${result.variants.length}`);
+  return result;
+}
+
+/** DELETE /api/products/{id} is a soft delete — flips the product and every
+ * variant's `active` to false, nothing is removed. Used by the Inventario
+ * module (see `app/inventory/`) to deactivate a product. */
+export async function deactivateProduct(productId: number): Promise<void> {
+  const path = `/api/products/${productId}`;
+  const response = await fetch(`${apiBaseUrl()}${path}`, { method: 'DELETE' });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    console.error(`[products-api] DELETE ${path} -> ${response.status}`, text);
+    throw new Error(parseApiErrorMessage(response.status, text));
+  }
+
+  console.log(`[products-api] DELETE ${path} -> ${response.status}`);
+}
+
+/** PUT /api/products/{id}/activate — counterpart to `deactivateProduct`. */
+export async function activateProduct(productId: number): Promise<RemoteProduct> {
+  const path = `/api/products/${productId}/activate`;
+  const response = await fetch(`${apiBaseUrl()}${path}`, { method: 'PUT' });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    console.error(`[products-api] PUT ${path} -> ${response.status}`, text);
+    throw new Error(parseApiErrorMessage(response.status, text));
+  }
+
+  const result: RemoteProduct = await response.json();
+  console.log(`[products-api] PUT ${path} -> ${response.status}`);
   return result;
 }
