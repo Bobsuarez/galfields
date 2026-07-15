@@ -92,6 +92,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   scanFab: {
     top: -20,
+    alignSelf: 'center',
     width: 60,
     height: 60,
     borderRadius: 30,
