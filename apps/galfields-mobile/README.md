@@ -1,50 +1,47 @@
-# Welcome to your Expo app 👋
+# galfields-mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App móvil de gestión — Expo 54 / React Native, con `expo-router` (file-based routing) y New Architecture habilitada. Administra catálogo, inventario y reportes directamente contra [`backend/pos`](../../backend/pos); a diferencia del POS de escritorio, no trabaja offline — cada pantalla lee/escribe en vivo contra la API.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- **Expo 54** / **React Native 0.81**, New Architecture + React Compiler habilitados
+- **expo-router 6** — rutas basadas en archivos bajo `app/`
+- **TypeScript**
 
-   ```bash
-   npm install
-   ```
+## Requisitos
 
-2. Start the app
+- Node.js
+- La app **Expo Go** en tu teléfono, o un emulador/simulador (Android Studio / Xcode)
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Configuración
 
 ```bash
-npm run reset-project
+npm install
+cp .env.example .env.local
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Edita `.env.local` y define `EXPO_PUBLIC_API_BASE_URL` con la URL de tu `backend/pos`. En un dispositivo físico con Expo Go, `localhost` no resuelve a tu máquina de desarrollo — usa la IP LAN (ej. `http://192.168.1.50:8080`). Esta variable es solo el valor inicial: la URL real es configurable en runtime desde **Configuración → Servidor** dentro de la app, sin necesidad de una build nueva.
 
-## Learn more
+También necesitas `EXPO_PUBLIC_CLIPDROP_API_KEY` (key gratuita en [clipdrop.co/apis](https://clipdrop.co/apis)) para el recorte de fondo de imágenes de producto.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Comandos
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+npm start         # servidor de desarrollo de Expo (QR para Expo Go)
+npm run ios       # simulador de iOS
+npm run android   # emulador de Android
+npm run web       # navegador web
+npm run lint      # ESLint
+```
 
-## Join the community
+## Funcionalidades
 
-Join our community of developers creating universal apps.
+- **Login**: gate de autenticación (`contexts/auth-context.tsx`) delante del resto de la app
+- **Productos**: catálogo con variantes, atributos e imágenes con fondo recortado automáticamente
+- **Configuración**: CRUDs de categorías, marcas, ubicaciones y métodos de pago; pantalla de Servidor para apuntar a un backend distinto
+- **Reportes**: ventas del día, cierre de caja, ventas por método de pago, inventario actual, stock bajo, historial de facturas — todo sobre `GET /api/reports/*`
+- **Inventario**: vista de lectura/escritura por variante — editar stock y activar/desactivar productos
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Más detalle
+
+Este README es solo el punto de entrada — la estructura de rutas, el sistema de theming, y las convenciones de cada feature están en [`CLAUDE.md`](CLAUDE.md).

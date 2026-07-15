@@ -8,7 +8,7 @@ Spring Boot 4.1.0 backend for a POS (point of sale) system, part of the larger G
 
 Base package: `co.com.galfields.pos`. Entry point: `src/main/java/co/com/galfields/pos/PosApplication.java`.
 
-The project follows conventional Spring Boot layering (`controller` / `service` / `repository` / `entity` / `dto` / `exception` / `config` packages under `co.com.galfields.pos`). Entities cover the full POS domain (products, variants, inventory, sales, purchase orders, employees, customers, suppliers); only the products/categories/brands/locations/payment-methods/inventory slice currently has controllers and services wired up.
+The project follows conventional Spring Boot layering (`controller` / `service` / `repository` / `entity` / `dto` / `exception` / `config` packages under `co.com.galfields.pos`). Entities cover the full POS domain (products, variants, inventory, sales, purchase orders, employees, customers, suppliers); products/categories/brands/locations/payment-methods/inventory/sales/reports all have controllers and services wired up (see the sections below) — only purchase orders/customers/suppliers are still entity-only, with no endpoints yet.
 
 ## Keeping this file in sync
 
@@ -103,7 +103,7 @@ Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON 
 
 ## Inventory adjustment endpoint (`POST /api/inventory/adjustments`)
 
-`InventoryController` → `InventoryService` → `InventoryRepository`/`StockAdjustmentRepository`. This is how offline-first clients (currently: the desktop POS's outbox, not yet built — see that repo's CLAUDE.md) report stock changes that already happened locally (a sale decrements; a future return/manual correction could increment), batched one call per sale:
+`InventoryController` → `InventoryService` → `InventoryRepository`/`StockAdjustmentRepository`. This is how offline-first clients (currently: the desktop POS's outbox, `apps/galfield-pos`'s `sales_sync.rs` — see that repo's CLAUDE.md) report stock changes that already happened locally (a sale decrements; a future return/manual correction could increment), batched one call per sale. **Note:** the POS outbox now calls `POST /api/sales` instead (see "Sale recording endpoint" below), which applies this same adjustment internally — this endpoint is still hit directly for that, and remains available as a standalone primitive for any future caller that only needs a stock delta, not a full sale record:
 
 ```json
 {
