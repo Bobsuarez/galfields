@@ -56,7 +56,6 @@ function applyStyles(styles: ConfigSettings['styles']): void {
   root.style.setProperty('--color-surface-2',    styles.lightBg)
   root.style.setProperty('--color-surface-3',    shiftHex(styles.lightBg,  dir * 8))
   root.style.setProperty('--color-cream',        styles.lightText)   // semantic alias
-  root.style.setProperty('--color-peach',        styles.bgColor)   // legacy alias
 
   // ── Primary & accents ─────────────────────────────────────────────────────
   root.style.setProperty('--color-primary',       styles.primaryColor)
