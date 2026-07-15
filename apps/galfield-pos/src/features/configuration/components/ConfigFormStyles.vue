@@ -90,7 +90,14 @@ const COLOR_FIELDS = [
     <section class="form-card">
       <h3 class="card-title">Vista Previa del Sistema</h3>
 
-      <div class="preview-widget" :style="{ '--pw-primary': settings.styles.primaryColor }">
+      <div
+        class="preview-widget"
+        :style="{
+          '--pw-bg': settings.styles.bgColor,
+          '--pw-primary': settings.styles.primaryColor,
+          '--pw-text': settings.styles.lightText,
+        }"
+      >
         <div class="pw-product">
           <div class="pw-product-img">🥤</div>
           <div class="pw-product-info">
@@ -299,9 +306,12 @@ const COLOR_FIELDS = [
   overflow: hidden;
 }
 
-/* Preview Widget */
+/* Preview Widget — colors come from the --pw-* custom properties bound
+   above (settings.styles), not hardcoded literals, so this actually shows
+   what you're about to save instead of always looking like the default
+   Garfield theme regardless of your picks. */
 .preview-widget {
-  background: #0D0D0D;
+  background: var(--pw-bg, #0D0D0D);
   border-radius: var(--radius-md);
   padding: 14px;
   border: 1px solid rgba(255,255,255,0.06);
@@ -330,7 +340,7 @@ const COLOR_FIELDS = [
 .pw-product-name {
   font-size: 12px;
   font-weight: 600;
-  color: #F2E399;
+  color: var(--pw-text, #F2E399);
 }
 
 .pw-product-price {
@@ -364,7 +374,7 @@ const COLOR_FIELDS = [
 .pw-cart-title {
   font-size: 11px;
   font-weight: 700;
-  color: #F2E399;
+  color: var(--pw-text, #F2E399);
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -374,7 +384,8 @@ const COLOR_FIELDS = [
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: rgba(242,227,153,0.6);
+  color: var(--pw-text, #F2E399);
+  opacity: 0.6;
   padding: 2px 0;
 }
 
