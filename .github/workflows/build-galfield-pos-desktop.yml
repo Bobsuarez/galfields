@@ -21,8 +21,16 @@ jobs:
             artifact-name: galfield-pos-windows
           - platform: macos-latest
             artifact-name: galfield-pos-macos
-          - platform: ubuntu-latest
-            artifact-name: galfield-pos-linux
+          # Ubuntu 20.04 no se soporta: Tauri 2 requiere libwebkit2gtk-4.1-dev,
+          # inexistente en sus repos, y su runner hospedado en GitHub fue
+          # retirado el 2025-04-15. Se compila por separado en 22.04 y 24.04
+          # (en vez de un solo ubuntu-latest) para que cada .deb quede con las
+          # dependencias correctas de esa versión y evitar enlazar contra
+          # symbols de glibc/webkit más nuevos de lo necesario.
+          - platform: ubuntu-22.04
+            artifact-name: galfield-pos-linux-ubuntu22
+          - platform: ubuntu-24.04
+            artifact-name: galfield-pos-linux-ubuntu24
 
     runs-on: ${{ matrix.platform }}
     defaults:
@@ -35,7 +43,7 @@ jobs:
 
       # Dependencias nativas de Tauri en Linux (webkit2gtk, etc.)
       - name: Install Linux system dependencies
-        if: matrix.platform == 'ubuntu-latest'
+        if: startsWith(matrix.platform, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
