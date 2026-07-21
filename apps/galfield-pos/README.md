@@ -43,3 +43,4 @@ La base de datos local empieza vacía. Antes de poder vender hay que sincronizar
 ## Más detalle
 
 Este README es solo el punto de entrada — la arquitectura completa (estructura de `src-tauri/`, el sistema de logging numerado de las llamadas HTTP, las convenciones de sincronización e idempotencia, el sistema de theming) está en [`CLAUDE.md`](CLAUDE.md).
+
