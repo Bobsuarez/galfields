@@ -9,6 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/contexts/auth-context';
 import { ProductsProvider } from '@/contexts/products-context';
 import { initApiBaseUrl } from '@/services/api-base-url';
+import { initImageSearchProvider } from '@/services/image-search-provider';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -21,7 +22,7 @@ export default function RootLayout() {
     // services/*-api.ts call is a synchronous apiBaseUrl() read - the
     // server URL (possibly a Configuración → Servidor override in
     // AsyncStorage) must be loaded before any of that can render.
-    initApiBaseUrl().finally(() => {
+    Promise.all([initApiBaseUrl(), initImageSearchProvider()]).finally(() => {
       setConfigReady(true);
       SplashScreen.hideAsync();
     });

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import type { UnlistenFn } from '@tauri-apps/api/event'
+import { useSystemPermissionsBus } from '../../../composables/peripherals/useSystemPermissionsBus'
 import type { ConfigSettings } from '../../../types'
 
 const props = defineProps<{ settings: ConfigSettings }>()
@@ -27,7 +29,47 @@ async function scanPorts() {
   }
 }
 
-onMounted(scanPorts)
+// ── System-level port permissions ──────────────────────────────────────────────
+// Installer sometimes skips granting OS access to serial ports (Linux needs the
+// user in the `dialout` group); this lets the user apply it from here instead.
+// Explicit button, not triggered on every dropdown change, since it may prompt
+// for the admin password (pkexec) and doing that on each selection would be
+// disruptive while the user is still trying different ports.
+
+const permissionsBus = useSystemPermissionsBus()
+const isApplyingPermissions = ref(false)
+const permissionsResult = ref<{ text: string; isError: boolean } | null>(null)
+const unlisteners: UnlistenFn[] = []
+
+async function applyPermissions() {
+  isApplyingPermissions.value = true
+  permissionsResult.value = null
+  try {
+    await permissionsBus.triggerApplyPermissions()
+  } catch (e) {
+    isApplyingPermissions.value = false
+    permissionsResult.value = { text: String(e), isError: true }
+  }
+}
+
+onMounted(async () => {
+  await scanPorts()
+  unlisteners.push(
+    await permissionsBus.onPermissionsStatus(payload => {
+      isApplyingPermissions.value = false
+      permissionsResult.value = { text: payload.message, isError: false }
+    }),
+    await permissionsBus.onPermissionsError(message => {
+      isApplyingPermissions.value = false
+      permissionsResult.value = { text: message, isError: true }
+    }),
+  )
+})
+
+onUnmounted(() => {
+  unlisteners.forEach(fn => fn())
+  unlisteners.length = 0
+})
 
 // ── Device definitions ────────────────────────────────────────────────────────
 
@@ -97,10 +139,19 @@ function statusLabel(dev: DeviceDef): { text: string; cls: string } {
     <div class="periph-header">
       <h2 class="section-title">Periféricos</h2>
       <p class="section-desc">Asigna cada dispositivo a su puerto de conexión detectado en el sistema.</p>
-      <button class="scan-btn" :disabled="isScanning" @click="scanPorts">
-        <span :class="{ spinning: isScanning }">🔄</span>
-        {{ isScanning ? 'Escaneando…' : 'Reescanear puertos' }}
-      </button>
+      <div class="header-actions">
+        <button class="scan-btn" :disabled="isScanning" @click="scanPorts">
+          <span :class="{ spinning: isScanning }">🔄</span>
+          {{ isScanning ? 'Escaneando…' : 'Reescanear puertos' }}
+        </button>
+        <button class="scan-btn" :disabled="isApplyingPermissions" @click="applyPermissions">
+          <span :class="{ spinning: isApplyingPermissions }">🔐</span>
+          {{ isApplyingPermissions ? 'Aplicando…' : 'Aplicar permisos del sistema' }}
+        </button>
+      </div>
+      <p v-if="permissionsResult" class="permissions-msg" :class="{ 'permissions-msg--error': permissionsResult.isError }">
+        {{ permissionsResult.text }}
+      </p>
     </div>
 
     <!-- Detected ports summary -->
@@ -227,9 +278,32 @@ function statusLabel(dev: DeviceDef): { text: string; cls: string } {
   line-height: 1.5;
 }
 
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.permissions-msg {
+  font-size: 11.5px;
+  color: #81c784;
+  background: rgba(56, 142, 60, 0.1);
+  border: 1px solid rgba(56, 142, 60, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  line-height: 1.5;
+}
+
+.permissions-msg--error {
+  color: #e57373;
+  background: rgba(229, 57, 53, 0.08);
+  border-color: rgba(229, 57, 53, 0.2);
+}
+
 .scan-btn {
   align-self: flex-start;
-  margin-top: 6px;
+  margin-top: 0;
   display: flex;
   align-items: center;
   gap: 6px;

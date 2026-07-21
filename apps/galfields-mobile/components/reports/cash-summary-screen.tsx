@@ -1,25 +1,35 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ReportHeader } from './report-header';
+import { DEFAULT_RANGES, QuickRangeChips } from './quick-range-chips';
+import { DateRangePicker } from './date-range-picker';
 import { StatCard } from './stat-card';
 import { BarRow } from './bar-row';
 import { Brand } from '@/constants/theme';
 import { formatCurrency } from '@/utils/currency';
+import { SimpleDateRange } from '@/utils/date-range';
+import { useReportDateRange } from '@/hooks/use-report-date-range';
 import { fetchSalesByPaymentMethod, PaymentMethodSales } from '@/services/reports-api';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 
-/** "Cierre de caja" as a same-day payment-method summary, not a formal
- * open/close register session — there's no session concept yet (see
- * backend/pos's CLAUDE.md). No date chips: this report is always "today". */
+const RANGES = [...DEFAULT_RANGES, 'custom' as const];
+
+/** "Cierre de caja" as a payment-method summary for a chosen date range, not
+ * a formal open/close register session — there's no session concept yet
+ * (see backend/pos's CLAUDE.md). Defaults to "Hoy" (same as before this had
+ * date chips) but the cashier can look at a past day/range too. */
 export function CashSummaryScreen() {
+  const colors = useThemeColors();
+  const { range, setRange, customRange, setCustomRange, dates } = useReportDateRange('today');
   const [rows, setRows] = useState<PaymentMethodSales[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (selected: SimpleDateRange) => {
     setLoading(true);
     setError(null);
     try {
-      setRows(await fetchSalesByPaymentMethod());
+      setRows(await fetchSalesByPaymentMethod(selected));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo cargar el cierre de caja.');
     } finally {
@@ -28,19 +38,24 @@ export function CashSummaryScreen() {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(dates);
+    // Only re-run when the resolved dates change - `load` itself is a
+    // stable closure with no dependency on `dates`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dates.from, dates.to]);
 
   const total = rows.reduce((sum, row) => sum + row.totalAmount, 0);
   const maxAmount = rows.reduce((max, row) => Math.max(max, row.totalAmount), 0);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ReportHeader title="Cierre de caja" />
+      <QuickRangeChips value={range} onChange={setRange} ranges={RANGES} />
+      {range === 'custom' && <DateRangePicker range={customRange} onChange={setCustomRange} />}
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load(dates)} />}
       >
         {error ? (
           <Text style={styles.error}>{error}</Text>
@@ -48,10 +63,12 @@ export function CashSummaryScreen() {
           <ActivityIndicator color={Brand.orange} style={styles.loader} />
         ) : (
           <>
-            <StatCard label="Total del día" value={formatCurrency(total)} accent />
+            <StatCard label="Total vendido" value={formatCurrency(total)} accent />
             <View style={styles.spacer} />
             {rows.length === 0 ? (
-              <Text style={styles.empty}>Todavía no hay ventas registradas hoy.</Text>
+              <Text style={[styles.empty, { color: colors.textSecondary }]}>
+                No hay ventas registradas en este rango.
+              </Text>
             ) : (
               rows.map(row => (
                 <BarRow
@@ -71,10 +88,10 @@ export function CashSummaryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   content: { padding: 16 },
   spacer: { height: 16 },
   loader: { marginTop: 40 },
   error: { color: Brand.danger, fontSize: 14, textAlign: 'center', marginTop: 24 },
-  empty: { color: '#8A7060', fontSize: 14, textAlign: 'center', marginTop: 24 },
+  empty: { fontSize: 14, textAlign: 'center', marginTop: 24 },
 });

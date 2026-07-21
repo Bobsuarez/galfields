@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 interface SettingsMenuRowProps {
@@ -10,19 +11,24 @@ interface SettingsMenuRowProps {
 }
 
 export function SettingsMenuRow({ icon, label, subtitle, onPress }: SettingsMenuRowProps) {
+  const colors = useThemeColors();
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.row,
+        { backgroundColor: colors.card, borderBottomColor: colors.border },
+        pressed && styles.pressed,
+      ]}
     >
       <View style={styles.iconBox}>
         <IconSymbol name={icon as any} size={24} color={Brand.orange} />
       </View>
       <View style={styles.info}>
-        <Text style={styles.label}>{label}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
       </View>
-      <IconSymbol name="chevron.right" size={20} color="#CCC" />
+      <IconSymbol name="chevron.right" size={20} color={colors.icon} />
     </Pressable>
   );
 }
@@ -31,12 +37,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEE8E0',
   },
   pressed: { opacity: 0.7 },
   iconBox: {
@@ -48,6 +52,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   info: { flex: 1 },
-  label: { fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
-  subtitle: { fontSize: 12, color: '#8A7060', marginTop: 2 },
+  label: { fontSize: 15, fontWeight: '600' },
+  subtitle: { fontSize: 12, marginTop: 2 },
 });

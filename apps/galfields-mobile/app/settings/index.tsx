@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SettingsMenuRow } from '@/components/settings/settings-menu-row';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 
 const SETTINGS_ITEMS = [
   {
@@ -36,13 +37,20 @@ const SETTINGS_ITEMS = [
     subtitle: 'URL del backend al que se conecta la app',
     href: '/settings/server' as const,
   },
+  {
+    icon: 'magnifyingglass',
+    label: 'Búsqueda de imágenes',
+    subtitle: 'Proveedor usado para buscar fotos de producto',
+    href: '/settings/image-search-provider' as const,
+  },
 ] as const;
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <IconSymbol name="arrow.left" size={24} color="#fff" />
@@ -69,7 +77,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

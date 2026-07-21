@@ -6,11 +6,13 @@ import { PaymentMethodListItem } from './payment-method-list-item';
 import { PaymentMethodFormModal } from './payment-method-form-modal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { useCatalogCrud } from '@/hooks/use-catalog-crud';
 import { paymentMethodsApi, type PaymentMethod, type PaymentMethodFormData } from '@/services/payment-methods-api';
 
 export function PaymentMethodsScreen() {
   const { items, loading, error, saving, reload, create, update, remove } = useCatalogCrud(paymentMethodsApi);
+  const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const [formVisible, setFormVisible] = useState(false);
   const [editing, setEditing] = useState<PaymentMethod | null>(null);
@@ -58,7 +60,7 @@ export function PaymentMethodsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <IconSymbol name="arrow.left" size={24} color="#fff" />
@@ -93,8 +95,8 @@ export function PaymentMethodsScreen() {
         ListEmptyComponent={
           !loading ? (
             <View style={styles.empty}>
-              <IconSymbol name="creditcard.fill" size={48} color="#E8DDD0" />
-              <Text style={styles.emptyText}>No se encontraron métodos de pago</Text>
+              <IconSymbol name="creditcard.fill" size={48} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No se encontraron métodos de pago</Text>
             </View>
           ) : null
         }
@@ -112,7 +114,7 @@ export function PaymentMethodsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -143,5 +145,5 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     gap: 12,
   },
-  emptyText: { fontSize: 15, color: '#8A7060' },
+  emptyText: { fontSize: 15 },
 });

@@ -49,7 +49,7 @@ export function StockEditModal({ row, saving, onSave, onCancel }: StockEditModal
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
             {row?.displayName}
           </Text>
-          <Text style={styles.currentStock}>Stock actual: {row?.stock ?? 0}</Text>
+          <Text style={[styles.currentStock, { color: colors.textSecondary }]}>Stock actual: {row?.stock ?? 0}</Text>
 
           <TextInputField
             label="Nueva cantidad"
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   title: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  currentStock: { fontSize: 13, color: '#8A7060', marginBottom: 16 },
+  currentStock: { fontSize: 13, marginBottom: 16 },
   footer: { flexDirection: 'row', gap: 12, marginTop: 8 },
   footerBtn: { flex: 1 },
 });

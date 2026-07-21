@@ -2,9 +2,10 @@ import * as ImagePicker from 'expo-image-picker';
 
 /**
  * Picks a photo (camera or gallery) and reports its uri back untouched.
- * Unlike useImagePicker, this does not run background removal — that's a
- * product-only step (see services/background-removal.ts); other entities
- * that just need a plain uploaded image (e.g. payment methods) use this.
+ * Unlike useImagePicker, this has no `pickFromUrl` for image-search results
+ * — that's a product-only flow (see components/products/image-search-modal.tsx);
+ * other entities that just need a plain uploaded image (e.g. payment methods)
+ * use this.
  */
 export function usePlainImagePicker(onChange: (uri: string | null) => void) {
   const pick = async (source: 'camera' | 'gallery') => {

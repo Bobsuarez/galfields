@@ -12,6 +12,7 @@ mod reports;
 mod sales_sync;
 mod settings;
 mod sync;
+mod system_permissions;
 
 use std::collections::HashMap;
 use std::sync::{atomic::AtomicBool, Arc, Mutex};
@@ -71,6 +72,7 @@ pub fn run() {
             pending_sales::delete_pending_sale,
             peripherals::list_serial_ports,
             peripherals::list_video_devices,
+            system_permissions::trigger_apply_port_permissions,
             payment_methods::list_payment_methods,
             reports::get_sales_summary,
             reports::get_top_products,

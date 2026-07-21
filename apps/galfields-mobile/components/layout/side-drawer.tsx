@@ -12,6 +12,7 @@ import {
 import { router } from 'expo-router';
 import { Brand } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 interface DrawerItem {
@@ -23,10 +24,10 @@ interface DrawerItem {
 const DRAWER_ITEMS: DrawerItem[] = [
   { label: 'Inicio', icon: 'house.fill', href: '/(tabs)' },
   { label: 'Productos', icon: 'shippingbox.fill', href: '/products' },
-  { label: 'Ventas', icon: 'chart.bar.fill' },
+  // { label: 'Ventas', icon: 'chart.bar.fill' },
   { label: 'Inventario', icon: 'tray.fill' },
-  { label: 'Carrito', icon: 'cart.fill' },
-  { label: 'Historial', icon: 'clock.fill' },
+  // { label: 'Carrito', icon: 'cart.fill' },
+  // { label: 'Historial', icon: 'clock.fill' },
   { label: 'Configuración', icon: 'gearshape.fill', href: '/settings' },
 ];
 
@@ -40,6 +41,7 @@ interface SideDrawerProps {
 
 export function SideDrawer({ visible, onClose, activeRoute }: SideDrawerProps) {
   const { user, logout } = useAuth();
+  const colors = useThemeColors();
   const translateX = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -82,7 +84,7 @@ export function SideDrawer({ visible, onClose, activeRoute }: SideDrawerProps) {
       </TouchableWithoutFeedback>
 
       {/* Drawer panel */}
-      <Animated.View style={[styles.drawer, { transform: [{ translateX }] }]}>
+      <Animated.View style={[styles.drawer, { backgroundColor: colors.card, transform: [{ translateX }] }]}>
         {/* Header */}
         <View style={styles.drawerHeader}>
           <View style={styles.avatar}>
@@ -105,16 +107,22 @@ export function SideDrawer({ visible, onClose, activeRoute }: SideDrawerProps) {
                 <IconSymbol
                   name={item.icon as any}
                   size={22}
-                  color={isActive ? Brand.orange : '#444'}
+                  color={isActive ? Brand.orange : colors.icon}
                 />
-                <Text style={[styles.drawerItemLabel, isActive && styles.drawerItemLabelActive]}>
+                <Text
+                  style={[
+                    styles.drawerItemLabel,
+                    { color: colors.text },
+                    isActive && styles.drawerItemLabelActive,
+                  ]}
+                >
                   {item.label}
                 </Text>
               </Pressable>
             );
           })}
 
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.border }]} />
 
           <Pressable onPress={handleLogout} style={styles.drawerItem}>
             <IconSymbol name="arrow.right.square" size={22} color={Brand.danger} />
@@ -137,7 +145,6 @@ const styles = StyleSheet.create({
     left: 0,
     width: DRAWER_WIDTH,
     height: '100%',
-    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 4, height: 0 },
     shadowOpacity: 0.15,
@@ -187,7 +194,6 @@ const styles = StyleSheet.create({
   },
   drawerItemLabel: {
     fontSize: 15,
-    color: '#333',
     fontWeight: '500',
   },
   drawerItemLabelActive: {
@@ -196,7 +202,6 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#EEE',
     marginHorizontal: 20,
     marginVertical: 8,
   },

@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { SelectField } from '@/components/ui/select-field';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import type { ProductVariantAttribute } from '@/types/product';
 
 const ATTRIBUTE_NAME_SUGGESTIONS = ['Color', 'Talla', 'Sabor', 'Tamaño', 'Peso', 'Material', 'Presentación'];
@@ -12,6 +13,17 @@ const MEASUREMENT_ATTRIBUTE_NAMES = ['tamaño', 'peso'];
 
 function isMeasurementAttribute(name: string): boolean {
   return MEASUREMENT_ATTRIBUTE_NAMES.includes(name.trim().toLowerCase());
+}
+
+/** Splits a stored measurement value (e.g. "250gr") back into its amount
+ * and unit — the inverse of `updateAmount`/`updateUnit` below. Returns
+ * `null` for anything that doesn't match (empty value, or legacy freeform
+ * text from before this measurement mode existed), so callers can leave
+ * whatever the user already has in place instead of clobbering it. */
+function parseMeasurementValue(value: string): { amount: string; unit: string } | null {
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*(gr|kg|lt|ml|oz)$/i);
+  if (!match) return null;
+  return { amount: match[1], unit: match[2].toLowerCase() };
 }
 
 interface AttributeRowProps {
@@ -24,9 +36,27 @@ interface AttributeRowProps {
  * switch to a number + unit combo so the stored value stays a single
  * uniform string (e.g. "48gr") instead of freeform text in the DB. */
 function AttributeRow({ attribute, onChange, onRemove }: AttributeRowProps) {
+  const colors = useThemeColors();
   const measurement = isMeasurementAttribute(attribute.name);
-  const [amount, setAmount] = useState('');
-  const [unit, setUnit] = useState('gr');
+  const initialParsed = parseMeasurementValue(attribute.value);
+  const [amount, setAmount] = useState(initialParsed?.amount ?? '');
+  const [unit, setUnit] = useState(initialParsed?.unit ?? 'gr');
+
+  // Re-syncs when `attribute.value` changes for a reason other than our own
+  // `updateAmount`/`updateUnit` calls below — namely, the product finishing
+  // its async load in edit.tsx after this row already mounted with an empty
+  // draft (see key={index} in VariantAttributesEditor: same key means React
+  // reuses this instance instead of remounting it, so the `useState` above
+  // only ever ran once, against the empty placeholder). Our own edits
+  // round-trip to the same amount/unit they just set, so this is a no-op
+  // in that case instead of an infinite loop.
+  useEffect(() => {
+    const parsed = parseMeasurementValue(attribute.value);
+    if (parsed) {
+      setAmount(parsed.amount);
+      setUnit(parsed.unit);
+    }
+  }, [attribute.value]);
 
   const updateName = (name: string) => {
     // Changing the attribute (e.g. Tamaño -> Color) invalidates whatever
@@ -48,7 +78,7 @@ function AttributeRow({ attribute, onChange, onRemove }: AttributeRowProps) {
   };
 
   return (
-    <View style={styles.attributeBlock}>
+    <View style={[styles.attributeBlock, { borderColor: colors.border }]}>
       <View style={styles.attributeHeader}>
         <TextInputField
           placeholder="Nombre del atributo"
@@ -106,6 +136,7 @@ interface VariantAttributesEditorProps {
 }
 
 export function VariantAttributesEditor({ attributes, error, onChange }: VariantAttributesEditorProps) {
+  const colors = useThemeColors();
   const updateAttribute = (index: number, next: ProductVariantAttribute) => {
     onChange(attributes.map((attr, i) => (i === index ? next : attr)));
   };
@@ -120,7 +151,7 @@ export function VariantAttributesEditor({ attributes, error, onChange }: Variant
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.label}>Atributos (requerido, ej. tamaño o color)</Text>
+      <Text style={[styles.label, { color: colors.text }]}>Atributos (requerido, ej. tamaño o color)</Text>
       {attributes.map((attr, index) => (
         <AttributeRow
           key={index}
@@ -140,12 +171,11 @@ export function VariantAttributesEditor({ attributes, error, onChange }: Variant
 
 const styles = StyleSheet.create({
   wrapper: { marginBottom: 4 },
-  label: { fontSize: 13, fontWeight: '500', marginBottom: 6, color: '#1A1A1A' },
+  label: { fontSize: 13, fontWeight: '500', marginBottom: 6 },
   errorText: { fontSize: 12, color: Brand.danger, marginBottom: 8 },
 
   attributeBlock: {
     borderWidth: 1,
-    borderColor: '#E8DDD0',
     borderRadius: 10,
     padding: 10,
     marginBottom: 10,

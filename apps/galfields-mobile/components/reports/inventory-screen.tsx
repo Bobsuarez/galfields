@@ -2,14 +2,16 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-nativ
 import { ReportHeader } from './report-header';
 import { InventoryRowItem } from './inventory-row-item';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { usePaginatedFetch } from '@/hooks/use-paginated-fetch';
 import { fetchInventory } from '@/services/reports-api';
 
 export function InventoryScreen() {
+  const colors = useThemeColors();
   const { items, loading, loadingMore, error, refresh, loadMore } = usePaginatedFetch(fetchInventory);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ReportHeader title="Inventario actual" />
       {error ? (
         <Text style={styles.error}>{error}</Text>
@@ -24,7 +26,11 @@ export function InventoryScreen() {
           onEndReached={loadMore}
           renderItem={({ item }) => <InventoryRowItem row={item} />}
           ListFooterComponent={loadingMore ? <ActivityIndicator color={Brand.orange} style={styles.footerLoader} /> : null}
-          ListEmptyComponent={!loading ? <Text style={styles.empty}>No hay productos en inventario.</Text> : null}
+          ListEmptyComponent={
+            !loading ? (
+              <Text style={[styles.empty, { color: colors.textSecondary }]}>No hay productos en inventario.</Text>
+            ) : null
+          }
         />
       )}
     </View>
@@ -32,9 +38,9 @@ export function InventoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   list: { flex: 1 },
   footerLoader: { marginVertical: 16 },
   error: { color: Brand.danger, fontSize: 14, textAlign: 'center', marginTop: 24 },
-  empty: { color: '#8A7060', fontSize: 14, textAlign: 'center', marginTop: 40 },
+  empty: { fontSize: 14, textAlign: 'center', marginTop: 40 },
 });

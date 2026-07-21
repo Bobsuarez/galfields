@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { ReportHeader } from '@/components/reports/report-header';
 import { AppButton } from '@/components/ui/app-button';
 import { TextInputField } from '@/components/ui/text-input-field';
-import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { currentApiBaseUrl, resetApiBaseUrl, setApiBaseUrl } from '@/services/api-base-url';
 
 /** Lets the app point at a different backend without a rebuild — same
@@ -14,6 +14,7 @@ import { currentApiBaseUrl, resetApiBaseUrl, setApiBaseUrl } from '@/services/ap
  * vars, since those are baked in at build time and can't change at
  * runtime. */
 export function ServerScreen() {
+  const colors = useThemeColors();
   const [url, setUrl] = useState(currentApiBaseUrl() ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -47,10 +48,10 @@ export function ServerScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ReportHeader title="Servidor" />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.hint}>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
           A dónde se conecta esta app para leer y guardar catálogo, ventas e inventario. Solo cámbiala si sabes lo
           que haces — un valor incorrecto deja la app sin poder sincronizar nada.
         </Text>
@@ -83,9 +84,9 @@ export function ServerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   content: { padding: 16, gap: 16 },
-  hint: { fontSize: 12, color: '#8A7060', lineHeight: 18 },
+  hint: { fontSize: 12, lineHeight: 18 },
   actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   actionBtn: { flex: 1 },
 });

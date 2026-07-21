@@ -1,6 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Product, ProductInput } from '@/types/product';
-import { createProduct, fetchProducts, RemoteProduct, updateProduct as updateProductApi } from '@/services/products-api';
+import {
+  createProduct,
+  deactivateProduct,
+  fetchProducts,
+  RemoteProduct,
+  updateProduct as updateProductApi,
+} from '@/services/products-api';
 
 interface ProductsContextValue {
   products: Product[];
@@ -12,6 +18,7 @@ interface ProductsContextValue {
   loadMore: () => void;
   addProduct: (data: ProductInput) => Promise<Product>;
   updateProduct: (productId: string, data: ProductInput) => Promise<Product>;
+  removeProduct: (productId: string) => Promise<void>;
   searchProducts: (query: string) => Product[];
 }
 
@@ -82,6 +89,16 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
     return updated;
   };
 
+  /** Soft delete — see `services/products-api.ts`'s `deactivateProduct`: the
+   * backend has no real delete, it flips `active` to false so past sales
+   * referencing this product stay intact. The Products catalog only ever
+   * lists active products, so once deactivated it's dropped from local
+   * state too instead of waiting for the next `refresh()`. */
+  const removeProduct = async (productId: string): Promise<void> => {
+    await deactivateProduct(Number(productId));
+    setProducts(prev => prev.filter(p => p.id !== productId));
+  };
+
   const searchProducts = (query: string): Product[] => {
     if (!query.trim()) return products;
     const lower = query.toLowerCase();
@@ -100,6 +117,7 @@ export function ProductsProvider({ children }: { children: React.ReactNode }) {
         loadMore,
         addProduct,
         updateProduct,
+        removeProduct,
         searchProducts,
       }}
     >
