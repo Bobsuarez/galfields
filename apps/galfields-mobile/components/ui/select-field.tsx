@@ -40,7 +40,7 @@ export function SelectField({
           { borderColor: error ? Brand.danger : colors.border, backgroundColor: colors.card },
         ]}
       >
-        <Text style={[styles.triggerText, !value && { color: colors.placeholder }]}>
+        <Text style={[styles.triggerText, { color: value ? colors.text : colors.placeholder }]}>
           {value || placeholder}
         </Text>
         <IconSymbol name="chevron.down" size={18} color={colors.icon} />
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 50,
   },
-  triggerText: { fontSize: 15, color: '#1A1A1A', flex: 1 },
+  triggerText: { fontSize: 15, flex: 1 },
   error: { fontSize: 12, color: Brand.danger, marginTop: 4 },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

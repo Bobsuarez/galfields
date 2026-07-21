@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import type { InventoryRow } from '@/services/reports-api';
 
 interface InventoryRowItemProps {
@@ -9,13 +10,14 @@ interface InventoryRowItemProps {
 }
 
 export function InventoryRowItem({ row, warn }: InventoryRowItemProps) {
+  const colors = useThemeColors();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
           {row.productName}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
+        <Text style={[styles.meta, { color: colors.textSecondary }]} numberOfLines={1}>
           {row.sku} · {row.categoryName ?? 'Sin categoría'} · {row.locationName}
         </Text>
       </View>
@@ -28,16 +30,14 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEE8E0',
   },
   info: { flex: 1, gap: 2 },
-  name: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  meta: { fontSize: 11, color: '#8A7060' },
+  name: { fontSize: 14, fontWeight: '600' },
+  meta: { fontSize: 11 },
   qty: { fontSize: 16, fontWeight: '700', color: Brand.success },
   qtyWarn: { color: Brand.danger },
 });

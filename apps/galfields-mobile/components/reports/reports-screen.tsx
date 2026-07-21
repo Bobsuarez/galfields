@@ -2,7 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { ReportHeader } from './report-header';
 import { SettingsMenuRow } from '@/components/settings/settings-menu-row';
-import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 
 const REPORT_ITEMS = [
   {
@@ -44,8 +44,9 @@ const REPORT_ITEMS = [
 ] as const;
 
 export function ReportsScreen() {
+  const colors = useThemeColors();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ReportHeader title="Reportes" />
       <View style={styles.content}>
         <View style={styles.card}>
@@ -65,7 +66,7 @@ export function ReportsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   content: { padding: 16 },
   card: {
     borderRadius: 16,

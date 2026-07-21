@@ -6,6 +6,7 @@ import { VariantAttributesEditor } from '@/components/products/variant-attribute
 import { useImagePicker } from '@/hooks/use-image-picker';
 import { buildVariantSku } from '@/utils/sku';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import type { ProductVariantDraft } from '@/types/product';
 
 export interface VariantFormErrors {
@@ -37,11 +38,14 @@ export function VariantFormCard({
   onRemove,
   onScanBarcode,
 }: VariantFormCardProps) {
-  const { processing, pick, clear } = useImagePicker(imageUri => onChange({ ...value, imageUri: imageUri ?? undefined }));
+  const { processing, pick, pickFromUrl, clear } = useImagePicker(imageUri =>
+    onChange({ ...value, imageUri: imageUri ?? undefined }),
+  );
   const sku = value.originalSku ?? buildVariantSku(productName, value.attributes[0]?.value ?? '', value.barcode);
+  const colors = useThemeColors();
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.header}>
         <Text style={styles.title}>Variante {index + 1}</Text>
         {canRemove && (
@@ -55,7 +59,9 @@ export function VariantFormCard({
         <ImagePickerField
           imageUri={value.imageUri}
           processing={processing}
+          searchQuery={productName}
           onPick={pick}
+          onPickFromSearch={pickFromUrl}
           onRemove={clear}
           compact
         />
@@ -66,7 +72,7 @@ export function VariantFormCard({
             placeholder="Se completa con nombre, atributo y código de barras"
             value={sku}
             editable={false}
-            style={styles.skuInput}
+            style={{ color: colors.textSecondary }}
           />
 
           <View style={styles.barcodeRow}>
@@ -134,12 +140,10 @@ export function VariantFormCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
     borderRadius: 14,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E8DDD0',
   },
   header: {
     flexDirection: 'row',
@@ -164,5 +168,4 @@ const styles = StyleSheet.create({
   scanBtnPressed: { opacity: 0.75 },
   priceRow: { flexDirection: 'row', gap: 12 },
   priceField: { flex: 1 },
-  skuInput: { color: '#8A7060' },
 });

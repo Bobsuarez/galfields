@@ -2,16 +2,18 @@ import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProductListItem } from '@/components/products/product-list-item';
+import { ProductGridCard } from '@/components/products/product-grid-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useProducts } from '@/contexts/products-context';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import type { Product } from '@/types/product';
 
 export default function ProductsScreen() {
   const { products, loading, loadingMore, error, refresh, loadMore, searchProducts } = useProducts();
   const [query, setQuery] = useState('');
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   const isSearching = query.trim().length > 0;
   const displayed = isSearching ? searchProducts(query) : products;
@@ -21,7 +23,7 @@ export default function ProductsScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: 0 }]}>
+    <View style={[styles.container, { paddingTop: 0, backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
@@ -38,13 +40,13 @@ export default function ProductsScreen() {
       ) : null}
 
       {/* Search + Add */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchBar}>
-          <IconSymbol name="magnifyingglass" size={20} color="#8A7060" />
+      <View style={[styles.searchRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <View style={[styles.searchBar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+          <IconSymbol name="magnifyingglass" size={20} color={colors.textSecondary} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder="Buscar producto..."
-            placeholderTextColor="#B0A090"
+            placeholderTextColor={colors.placeholder}
             value={query}
             onChangeText={setQuery}
             returnKeyType="search"
@@ -62,10 +64,12 @@ export default function ProductsScreen() {
       <FlatList
         data={displayed}
         keyExtractor={item => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.gridRow}
         renderItem={({ item }) => (
-          <ProductListItem product={item} onPress={handleProductPress} />
+          <ProductGridCard product={item} onPress={handleProductPress} />
         )}
-        contentContainerStyle={displayed.length === 0 && styles.emptyContent}
+        contentContainerStyle={[styles.gridContent, displayed.length === 0 && styles.emptyContent]}
         refreshing={loading}
         onRefresh={refresh}
         onEndReached={() => {
@@ -80,8 +84,8 @@ export default function ProductsScreen() {
         ListEmptyComponent={
           loading ? null : (
             <View style={styles.empty}>
-              <IconSymbol name="shippingbox.fill" size={48} color="#E8DDD0" />
-              <Text style={styles.emptyText}>No se encontraron productos</Text>
+              <IconSymbol name="shippingbox.fill" size={48} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No se encontraron productos</Text>
             </View>
           )
         }
@@ -91,7 +95,7 @@ export default function ProductsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -120,23 +124,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 10,
-    backgroundColor: '#fff',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E8DDD0',
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Brand.cream,
     borderRadius: 10,
     paddingHorizontal: 12,
     gap: 8,
     height: 44,
     borderWidth: 1,
-    borderColor: '#E8DDD0',
   },
-  searchInput: { flex: 1, fontSize: 15, color: '#1A1A1A', paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 0 },
   addBtn: {
     width: 44,
     height: 44,
@@ -146,6 +146,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addBtnPressed: { opacity: 0.8 },
+  gridContent: { padding: 16, gap: 12 },
+  gridRow: { gap: 12 },
   emptyContent: { flex: 1 },
   empty: {
     flex: 1,
@@ -154,5 +156,5 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     gap: 12,
   },
-  emptyText: { fontSize: 15, color: '#8A7060' },
+  emptyText: { fontSize: 15 },
 });

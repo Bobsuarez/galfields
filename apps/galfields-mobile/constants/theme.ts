@@ -23,6 +23,11 @@ export const Colors = {
     card: '#FFFFFF',
     border: '#E8DDD0',
     placeholder: '#B0A090',
+    overlay: 'rgba(20,12,4,0.45)',
+    /** Text/icon color for content placed on a fixed brand-colored surface
+     * (Brand.orange or Brand.brown headers) — stays white in both themes
+     * since those surfaces don't change with the scheme. */
+    onBrand: '#FFFFFF',
   },
   dark: {
     text: '#F0E8DC',
@@ -35,6 +40,8 @@ export const Colors = {
     card: '#2C1810',
     border: '#3C2A1C',
     placeholder: '#6A5840',
+    overlay: 'rgba(0,0,0,0.65)',
+    onBrand: '#FFFFFF',
   },
 } as const;
 

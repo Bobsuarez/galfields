@@ -24,6 +24,7 @@ import { useProducts } from '@/contexts/products-context';
 import { brandsApi, categoriesApi, type CatalogBrand, type CatalogCategory } from '@/services/catalog-api';
 import { fetchProduct, toVariantDraft } from '@/services/products-api';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { toTitleCase } from '@/utils/text-case';
 import { buildVariantSku } from '@/utils/sku';
 import { createEmptyVariantDraft, type ProductInput, type ProductVariantDraft } from '@/types/product';
@@ -37,8 +38,9 @@ interface FormErrors {
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { updateProduct } = useProducts();
+  const { updateProduct, removeProduct } = useProducts();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   const [loadingProduct, setLoadingProduct] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -52,6 +54,7 @@ export default function EditProductScreen() {
   const [scanningIndex, setScanningIndex] = useState<number | null>(null);
   const [errors, setErrors] = useState<FormErrors>({ variants: [{}] });
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [brands, setBrands] = useState<CatalogBrand[]>([]);
@@ -195,9 +198,34 @@ export default function EditProductScreen() {
     }
   };
 
+  const handleDelete = () => {
+    Alert.alert(
+      'Eliminar producto',
+      `¿Eliminar "${name}"? Ya no aparecerá disponible para venta ni en el catálogo.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try {
+              await removeProduct(id);
+              router.back();
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Error desconocido';
+              Alert.alert('No se pudo eliminar el producto', msg, [{ text: 'OK' }]);
+              setDeleting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (loadingProduct) {
     return (
-      <View style={[styles.flex, styles.centered]}>
+      <View style={[styles.flex, styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={Brand.orange} />
       </View>
     );
@@ -205,7 +233,7 @@ export default function EditProductScreen() {
 
   if (loadError) {
     return (
-      <View style={[styles.flex, styles.centered]}>
+      <View style={[styles.flex, styles.centered, { backgroundColor: colors.background }]}>
         <Text style={styles.errorBannerText}>{loadError}</Text>
         <Pressable onPress={() => router.back()} style={styles.backLink}>
           <Text style={styles.backLinkText}>Volver</Text>
@@ -217,7 +245,7 @@ export default function EditProductScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.flex}
+      style={[styles.flex, { backgroundColor: colors.background }]}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -285,7 +313,9 @@ export default function EditProductScreen() {
         <ImagePickerField
           imageUri={imageUri}
           processing={mainImagePicker.processing}
+          searchQuery={name}
           onPick={mainImagePicker.pick}
+          onPickFromSearch={mainImagePicker.pickFromUrl}
           onRemove={mainImagePicker.clear}
         />
 
@@ -318,6 +348,21 @@ export default function EditProductScreen() {
             disabled={!canSave}
           />
         </View>
+
+        <Pressable
+          onPress={handleDelete}
+          disabled={saving || deleting}
+          style={({ pressed }) => [styles.deleteBtn, (pressed || deleting) && styles.deleteBtnPressed]}
+        >
+          {deleting ? (
+            <ActivityIndicator color={Brand.danger} />
+          ) : (
+            <>
+              <IconSymbol name="trash.fill" size={18} color={Brand.danger} />
+              <Text style={styles.deleteBtnText}>Eliminar producto</Text>
+            </>
+          )}
+        </Pressable>
       </ScrollView>
 
       {/* Barcode scanner modal, shared across variants */}
@@ -334,7 +379,7 @@ export default function EditProductScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Brand.cream },
+  flex: { flex: 1 },
   centered: { alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20 },
   header: {
     flexDirection: 'row',
@@ -386,4 +431,16 @@ const styles = StyleSheet.create({
   addVariantText: { fontSize: 14, fontWeight: '600', color: Brand.orange },
 
   saveBtn: { marginTop: 24 },
+
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  deleteBtnPressed: { opacity: 0.6 },
+  deleteBtnText: { fontSize: 14, fontWeight: '600', color: Brand.danger },
 });

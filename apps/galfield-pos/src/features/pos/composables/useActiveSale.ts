@@ -28,6 +28,12 @@ export function useActiveSale() {
   const pendingSales  = ref<PendingSale[]>([])
   const showSaveModal = ref(false)
 
+  // Set by `resumeSale` when the active cart came from a parked sale, so
+  // `requestSave` can update that same row (same id/label/iconKey) instead
+  // of asking for a name again and creating a duplicate. Cleared by
+  // `newSale` — a genuinely new sale still asks for a name the first time.
+  const activePendingSale = ref<{ id: string; label: string; iconKey: string } | null>(null)
+
   const subtotal = computed(() =>
     cartItems.value.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
   )
@@ -144,12 +150,19 @@ export function useActiveSale() {
     discount.value   = 0
     amountReceived.value = 0
     paymentMethod.value = resolveDefaultPaymentMethod()
+    activePendingSale.value = null
   }
 
   // ── Save modal ────────────────────────────────────────────────────────────
 
+  /** Sale already parked once (resumed from `pendingSales`) — update that
+   * same row straight away instead of asking for a name again. */
   function requestSave() {
     if (cartItems.value.length === 0) return
+    if (activePendingSale.value) {
+      confirmSave(activePendingSale.value.label, activePendingSale.value.iconKey)
+      return
+    }
     showSaveModal.value = true
   }
 
@@ -158,7 +171,7 @@ export function useActiveSale() {
   }
 
   async function confirmSave(label: string, iconKey: string) {
-    const id = `ps-${Date.now()}`
+    const id = activePendingSale.value?.id ?? `ps-${Date.now()}`
     const sale: PendingSale = {
       id,
       label,
@@ -182,6 +195,7 @@ export function useActiveSale() {
     } catch (e) {
       console.error('[pending-sales] save failed:', e)
     }
+    pendingSales.value = pendingSales.value.filter(s => s.id !== id)
     pendingSales.value.unshift(sale)
     showSaveModal.value = false
     newSale()
@@ -216,6 +230,7 @@ export function useActiveSale() {
     customerName.value = sale.label
     discount.value     = sale.discount
     amountReceived.value = 0
+    activePendingSale.value = { id: sale.id, label: sale.label, iconKey: sale.iconKey }
     try {
       await invoke('delete_pending_sale', { id: sale.id })
     } catch (e) {

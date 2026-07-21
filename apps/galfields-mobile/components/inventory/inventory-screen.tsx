@@ -4,6 +4,7 @@ import { ReportHeader } from '@/components/reports/report-header';
 import { InventoryVariantItem, InventoryVariantRow } from './inventory-variant-item';
 import { StockEditModal } from './stock-edit-modal';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { usePaginatedFetch } from '@/hooks/use-paginated-fetch';
 import { fetchProducts, activateProduct, deactivateProduct, RemoteProduct } from '@/services/products-api';
 import { adjustVariantStock } from '@/services/inventory-api';
@@ -33,6 +34,7 @@ function flattenProduct(product: RemoteProduct): InventoryVariantRow[] {
 }
 
 export function InventoryScreen() {
+  const colors = useThemeColors();
   const [showInactive, setShowInactive] = useState(false);
   const [editing, setEditing] = useState<InventoryVariantRow | null>(null);
   const [savingStock, setSavingStock] = useState(false);
@@ -111,11 +113,11 @@ export function InventoryScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ReportHeader title="Inventario" />
 
       <View style={styles.filterRow}>
-        <Text style={styles.filterLabel}>Mostrar desactivados</Text>
+        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>Mostrar desactivados</Text>
         <Switch value={showInactive} onValueChange={setShowInactive} trackColor={{ true: Brand.orange }} />
       </View>
 
@@ -143,7 +145,9 @@ export function InventoryScreen() {
             ) : null
           }
           ListEmptyComponent={
-            !loading ? <Text style={styles.empty}>No hay productos para mostrar.</Text> : null
+            !loading ? (
+              <Text style={[styles.empty, { color: colors.textSecondary }]}>No hay productos para mostrar.</Text>
+            ) : null
           }
         />
       )}
@@ -154,7 +158,7 @@ export function InventoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   list: { flex: 1 },
   filterRow: {
     flexDirection: 'row',
@@ -163,8 +167,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
-  filterLabel: { fontSize: 13, fontWeight: '600', color: '#8A7060' },
+  filterLabel: { fontSize: 13, fontWeight: '600' },
   footerLoader: { marginVertical: 16 },
   error: { color: Brand.danger, fontSize: 14, textAlign: 'center', marginTop: 24 },
-  empty: { color: '#8A7060', fontSize: 14, textAlign: 'center', marginTop: 40 },
+  empty: { fontSize: 14, textAlign: 'center', marginTop: 40 },
 });

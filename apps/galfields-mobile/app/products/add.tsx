@@ -22,6 +22,7 @@ import { useImagePicker } from '@/hooks/use-image-picker';
 import { useProducts } from '@/contexts/products-context';
 import { brandsApi, categoriesApi, type CatalogBrand, type CatalogCategory } from '@/services/catalog-api';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { toTitleCase } from '@/utils/text-case';
 import { buildVariantSku } from '@/utils/sku';
 import { createEmptyVariantDraft, type ProductInput, type ProductVariantDraft } from '@/types/product';
@@ -36,6 +37,7 @@ interface FormErrors {
 export default function AddProductScreen() {
   const { addProduct } = useProducts();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -179,7 +181,7 @@ export default function AddProductScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.flex}
+      style={[styles.flex, { backgroundColor: colors.background }]}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -247,7 +249,9 @@ export default function AddProductScreen() {
         <ImagePickerField
           imageUri={imageUri}
           processing={mainImagePicker.processing}
+          searchQuery={name}
           onPick={mainImagePicker.pick}
+          onPickFromSearch={mainImagePicker.pickFromUrl}
           onRemove={mainImagePicker.clear}
         />
 
@@ -296,7 +300,7 @@ export default function AddProductScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Brand.cream },
+  flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

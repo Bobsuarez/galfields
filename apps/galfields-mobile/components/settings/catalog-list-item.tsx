@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 interface CatalogListItemProps {
@@ -10,14 +11,15 @@ interface CatalogListItemProps {
 }
 
 export function CatalogListItem({ title, subtitle, onEdit, onDelete }: CatalogListItemProps) {
+  const colors = useThemeColors();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
       <View style={styles.info}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
           {title}
         </Text>
         {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={1}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>
             {subtitle}
           </Text>
         ) : null}
@@ -38,16 +40,14 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEE8E0',
   },
   info: { flex: 1 },
-  title: { fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
-  subtitle: { fontSize: 13, color: '#8A7060', marginTop: 2 },
+  title: { fontSize: 15, fontWeight: '600' },
+  subtitle: { fontSize: 13, marginTop: 2 },
   actions: { flexDirection: 'row', gap: 4 },
   actionBtn: { padding: 6 },
 });

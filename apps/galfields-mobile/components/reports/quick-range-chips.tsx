@@ -1,29 +1,39 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { QUICK_RANGE_LABELS, QuickRange } from '@/utils/date-range';
 
 interface QuickRangeChipsProps {
   value: QuickRange;
   onChange: (range: QuickRange) => void;
+  /** Defaults to the four fixed presets. Pass `DEFAULT_RANGES.concat('custom')`
+   * on screens that also offer `DateRangePicker` for an explicit range. */
+  ranges?: QuickRange[];
 }
 
-const RANGES: QuickRange[] = ['today', 'yesterday', 'week', 'month'];
+export const DEFAULT_RANGES: QuickRange[] = ['today', 'yesterday', 'week', 'month'];
 
-/** Date-range filter as tappable chips instead of a native date picker —
- * the project has no date-picker dependency installed yet, and a phone
- * report screen only really needs these four presets. */
-export function QuickRangeChips({ value, onChange }: QuickRangeChipsProps) {
+/** Date-range filter as tappable chips instead of a native date picker for
+ * the four fixed presets — a phone report screen only really needs those
+ * most of the time. Screens that need an arbitrary range add a
+ * `'custom'` chip (via `ranges`) that switches them to `DateRangePicker`. */
+export function QuickRangeChips({ value, onChange, ranges = DEFAULT_RANGES }: QuickRangeChipsProps) {
+  const colors = useThemeColors();
   return (
     <View style={styles.row}>
-      {RANGES.map(range => {
+      {ranges.map(range => {
         const active = range === value;
         return (
           <Pressable
             key={range}
             onPress={() => onChange(range)}
-            style={[styles.chip, active && styles.chipActive]}
+            style={[
+              styles.chip,
+              { backgroundColor: colors.card, borderColor: colors.border },
+              active && styles.chipActive,
+            ]}
           >
-            <Text style={[styles.chipText, active && styles.chipTextActive]}>
+            <Text style={[styles.chipText, { color: colors.textSecondary }, active && styles.chipTextActive]}>
               {QUICK_RANGE_LABELS[range]}
             </Text>
           </Pressable>
@@ -39,11 +49,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 20,
-    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: '#E8DDD0',
   },
   chipActive: { backgroundColor: Brand.orange, borderColor: Brand.orange },
-  chipText: { fontSize: 13, fontWeight: '600', color: '#8A7060' },
+  chipText: { fontSize: 13, fontWeight: '600' },
   chipTextActive: { color: '#fff' },
 });

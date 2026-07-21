@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppButton } from '@/components/ui/app-button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 
 function formatPrice(price: string): string {
   const n = Number(price);
@@ -17,25 +18,31 @@ export default function ProductSuccessScreen() {
     stock: string;
   }>();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: insets.top, paddingBottom: insets.bottom + 24, backgroundColor: colors.background },
+      ]}
+    >
       {/* Success icon */}
       <View style={styles.iconWrap}>
         <IconSymbol name="checkmark.circle.fill" size={88} color={Brand.success} />
       </View>
 
-      <Text style={styles.title}>¡Producto agregado{'\n'}exitosamente!</Text>
+      <Text style={[styles.title, { color: colors.text }]}>¡Producto agregado{'\n'}exitosamente!</Text>
 
       {/* Product card preview */}
-      <View style={styles.productCard}>
+      <View style={[styles.productCard, { backgroundColor: colors.card }]}>
         <View style={styles.productIconBox}>
           <IconSymbol name="shippingbox.fill" size={36} color={Brand.orange} />
         </View>
         <View style={styles.productInfo}>
-          <Text style={styles.productName}>{name}</Text>
+          <Text style={[styles.productName, { color: colors.text }]}>{name}</Text>
           <Text style={styles.productPrice}>{formatPrice(price)}</Text>
-          <Text style={styles.productStock}>Stock inicial: {stock}</Text>
+          <Text style={[styles.productStock, { color: colors.textSecondary }]}>Stock inicial: {stock}</Text>
         </View>
       </View>
 
@@ -58,7 +65,6 @@ export default function ProductSuccessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
@@ -75,14 +81,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1A1A1A',
     textAlign: 'center',
     lineHeight: 32,
   },
   productCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Brand.cream,
     borderRadius: 16,
     padding: 16,
     gap: 14,
@@ -97,8 +101,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   productInfo: { flex: 1 },
-  productName: { fontSize: 16, fontWeight: '700', color: '#1A1A1A' },
+  productName: { fontSize: 16, fontWeight: '700' },
   productPrice: { fontSize: 15, color: Brand.orange, fontWeight: '600', marginTop: 2 },
-  productStock: { fontSize: 12, color: '#8A7060', marginTop: 2 },
+  productStock: { fontSize: 12, marginTop: 2 },
   actions: { width: '100%', gap: 12 },
 });

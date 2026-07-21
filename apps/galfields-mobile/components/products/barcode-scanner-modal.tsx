@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 interface BarcodeScannerModalProps {
@@ -25,6 +26,7 @@ const CORNER_BORDER = 3;
 const OVERLAY = 'rgba(0,0,0,0.65)';
 
 export function BarcodeScannerModal({ visible, onScan, onClose }: BarcodeScannerModalProps) {
+  const colors = useThemeColors();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const insets = useSafeAreaInsets();
@@ -65,12 +67,12 @@ export function BarcodeScannerModal({ visible, onScan, onClose }: BarcodeScanner
 
         /* Permission not granted yet */
         ) : !permission.granted ? (
-          <View style={styles.centered}>
+          <View style={[styles.centered, { backgroundColor: colors.background }]}>
             <View style={styles.permissionIcon}>
               <IconSymbol name="camera.fill" size={40} color={Brand.orange} />
             </View>
-            <Text style={styles.permissionTitle}>Acceso a cámara requerido</Text>
-            <Text style={styles.permissionBody}>
+            <Text style={[styles.permissionTitle, { color: colors.text }]}>Acceso a cámara requerido</Text>
+            <Text style={[styles.permissionBody, { color: colors.textSecondary }]}>
               Necesitamos acceso a tu cámara para escanear códigos de barras de productos.
             </Text>
             <Pressable onPress={requestPermission} style={styles.grantBtn}>
@@ -134,7 +136,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
-    backgroundColor: Brand.cream,
     gap: 14,
   },
   permissionIcon: {
@@ -146,8 +147,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  permissionTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A', textAlign: 'center' },
-  permissionBody: { fontSize: 14, color: '#8A7060', textAlign: 'center', lineHeight: 22 },
+  permissionTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+  permissionBody: { fontSize: 14, textAlign: 'center', lineHeight: 22 },
   grantBtn: {
     marginTop: 8,
     paddingVertical: 14,

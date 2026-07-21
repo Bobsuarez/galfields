@@ -1,6 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 
 export interface InventoryVariantRow {
   productId: number;
@@ -20,21 +21,28 @@ interface InventoryVariantItemProps {
 }
 
 export function InventoryVariantItem({ row, onPressStock, onToggleActive }: InventoryVariantItemProps) {
+  const colors = useThemeColors();
   return (
-    <View style={[styles.container, !row.active && styles.containerInactive]}>
-      <View style={styles.thumb}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.card, borderBottomColor: colors.border },
+        !row.active && styles.containerInactive,
+      ]}
+    >
+      <View style={[styles.thumb, { backgroundColor: colors.border }]}>
         {row.imageUrl ? (
           <Image source={{ uri: row.imageUrl }} style={styles.thumbImage} resizeMode="cover" />
         ) : (
-          <IconSymbol name="shippingbox.fill" size={20} color="#B0A090" />
+          <IconSymbol name="shippingbox.fill" size={20} color={colors.placeholder} />
         )}
       </View>
 
       <View style={styles.info}>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
           {row.displayName}
         </Text>
-        <Text style={styles.meta} numberOfLines={1}>
+        <Text style={[styles.meta, { color: colors.textSecondary }]} numberOfLines={1}>
           {row.sku} · {row.barcode}
         </Text>
         {!row.active ? (
@@ -46,7 +54,7 @@ export function InventoryVariantItem({ row, onPressStock, onToggleActive }: Inve
 
       <Pressable onPress={onPressStock} style={styles.stockBtn} hitSlop={8}>
         <Text style={[styles.stockValue, row.stock <= 5 && styles.stockLow]}>{row.stock}</Text>
-        <Text style={styles.stockLabel}>en stock</Text>
+        <Text style={[styles.stockLabel, { color: colors.textSecondary }]}>en stock</Text>
       </Pressable>
 
       <Pressable onPress={onToggleActive} style={styles.actionBtn} hitSlop={8}>
@@ -64,27 +72,24 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     paddingVertical: 12,
     paddingHorizontal: 16,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEE8E0',
   },
   containerInactive: { opacity: 0.55 },
   thumb: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: '#F7F1E8',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   thumbImage: { width: '100%', height: '100%' },
   info: { flex: 1, gap: 2 },
-  name: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  meta: { fontSize: 11, color: '#8A7060' },
+  name: { fontSize: 14, fontWeight: '600' },
+  meta: { fontSize: 11 },
   badge: {
     alignSelf: 'flex-start',
     marginTop: 2,
@@ -97,6 +102,6 @@ const styles = StyleSheet.create({
   stockBtn: { alignItems: 'center', paddingHorizontal: 4, minWidth: 52 },
   stockValue: { fontSize: 17, fontWeight: '700', color: Brand.success },
   stockLow: { color: Brand.danger },
-  stockLabel: { fontSize: 9, color: '#8A7060' },
+  stockLabel: { fontSize: 9 },
   actionBtn: { padding: 6 },
 });

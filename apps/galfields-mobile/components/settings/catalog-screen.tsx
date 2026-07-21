@@ -6,6 +6,7 @@ import { CatalogListItem } from './catalog-list-item';
 import { CatalogFormModal, type CatalogFormField } from './catalog-form-modal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { useCatalogCrud } from '@/hooks/use-catalog-crud';
 
 interface CatalogEntity {
@@ -51,6 +52,7 @@ export function CatalogScreen<T extends CatalogEntity, FormData>({
   fromFormValues,
 }: CatalogScreenProps<T, FormData>) {
   const { items, loading, error, saving, reload, create, update, remove } = useCatalogCrud<T, FormData>(api);
+  const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const [formVisible, setFormVisible] = useState(false);
   const [editing, setEditing] = useState<T | null>(null);
@@ -99,7 +101,7 @@ export function CatalogScreen<T extends CatalogEntity, FormData>({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={() => router.back()} hitSlop={10}>
           <IconSymbol name="arrow.left" size={24} color="#fff" />
@@ -133,8 +135,8 @@ export function CatalogScreen<T extends CatalogEntity, FormData>({
         ListEmptyComponent={
           !loading ? (
             <View style={styles.empty}>
-              <IconSymbol name={emptyIcon as any} size={48} color="#E8DDD0" />
-              <Text style={styles.emptyText}>{emptyLabel}</Text>
+              <IconSymbol name={emptyIcon as any} size={48} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{emptyLabel}</Text>
             </View>
           ) : null
         }
@@ -154,7 +156,7 @@ export function CatalogScreen<T extends CatalogEntity, FormData>({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Brand.cream },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -185,5 +187,5 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     gap: 12,
   },
-  emptyText: { fontSize: 15, color: '#8A7060' },
+  emptyText: { fontSize: 15 },
 });

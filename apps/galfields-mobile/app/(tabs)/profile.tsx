@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/contexts/auth-context';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 
 interface ProfileItem {
   label: string;
@@ -25,13 +26,14 @@ const PROFILE_ITEMS: ProfileItem[] = [
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
 
   const handleItemPress = (item: ProfileItem) => {
     if (item.href) router.push(item.href as any);
   };
 
   return (
-    <View style={[styles.container, { paddingTop: 0 }]}>
+    <View style={[styles.container, { paddingTop: 0, backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <View style={styles.avatar}>
@@ -46,19 +48,19 @@ export default function ProfileScreen() {
           <Pressable
             key={item.label}
             onPress={() => handleItemPress(item)}
-            style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+            style={({ pressed }) => [styles.item, { borderBottomColor: colors.border }, pressed && styles.itemPressed]}
           >
             <IconSymbol name={item.icon as any} size={22} color={Brand.orange} />
-            <Text style={styles.itemLabel}>{item.label}</Text>
-            <IconSymbol name="chevron.right" size={18} color="#CCC" />
+            <Text style={[styles.itemLabel, { color: colors.text }]}>{item.label}</Text>
+            <IconSymbol name="chevron.right" size={18} color={colors.icon} />
           </Pressable>
         ))}
 
-        <View style={styles.separator} />
+        <View style={[styles.separator, { backgroundColor: colors.background }]} />
 
         <Pressable
           onPress={logout}
-          style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+          style={({ pressed }) => [styles.item, { borderBottomColor: colors.border }, pressed && styles.itemPressed]}
         >
           <IconSymbol name="arrow.right.square" size={22} color={Brand.danger} />
           <Text style={[styles.itemLabel, styles.logoutLabel]}>Cerrar sesión</Text>
@@ -69,7 +71,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1 },
   header: {
     backgroundColor: Brand.brown,
     paddingBottom: 28,
@@ -95,10 +97,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#F0EAE0',
   },
   itemPressed: { backgroundColor: `${Brand.orange}08` },
-  itemLabel: { flex: 1, fontSize: 15, color: '#1A1A1A', fontWeight: '500' },
-  separator: { height: 8, backgroundColor: Brand.cream },
+  itemLabel: { flex: 1, fontSize: 15, fontWeight: '500' },
+  separator: { height: 8 },
   logoutLabel: { color: Brand.danger },
 });

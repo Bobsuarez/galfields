@@ -93,15 +93,19 @@ export function PaymentMethodFormModal({
             <View style={styles.statusRow}>
               <Pressable
                 onPress={() => setActive(true)}
-                style={[styles.statusOption, active && styles.statusOptionActive]}
+                style={[styles.statusOption, { borderColor: colors.border }, active && styles.statusOptionActive]}
               >
-                <Text style={[styles.statusText, active && styles.statusTextActive]}>Activo</Text>
+                <Text style={[styles.statusText, { color: colors.textSecondary }, active && styles.statusTextActive]}>
+                  Activo
+                </Text>
               </Pressable>
               <Pressable
                 onPress={() => setActive(false)}
-                style={[styles.statusOption, !active && styles.statusOptionInactive]}
+                style={[styles.statusOption, { borderColor: colors.border }, !active && styles.statusOptionInactive]}
               >
-                <Text style={[styles.statusText, !active && styles.statusTextInactive]}>Inactivo</Text>
+                <Text style={[styles.statusText, { color: colors.textSecondary }, !active && styles.statusTextInactive]}>
+                  Inactivo
+                </Text>
               </Pressable>
             </View>
 
@@ -155,11 +159,10 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E8DDD0',
   },
   statusOptionActive: { backgroundColor: `${Brand.success}1A`, borderColor: Brand.success },
   statusOptionInactive: { backgroundColor: `${Brand.danger}14`, borderColor: Brand.danger },
-  statusText: { fontSize: 14, fontWeight: '600', color: '#8A7060' },
+  statusText: { fontSize: 14, fontWeight: '600' },
   statusTextActive: { color: Brand.success },
   statusTextInactive: { color: Brand.danger },
   footer: { flexDirection: 'row', gap: 12, marginTop: 16 },

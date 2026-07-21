@@ -15,9 +15,11 @@ import { AppButton } from '@/components/ui/app-button';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { useAuth } from '@/contexts/auth-context';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const colors = useThemeColors();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -45,7 +47,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
@@ -63,10 +65,10 @@ export default function LoginScreen() {
               resizeMode="contain"
             />
             <View style={styles.brandRow}>
-              <Text style={styles.brandGar}>Gar</Text>
+              <Text style={[styles.brandGar, { color: colors.text }]}>Gar</Text>
               <Text style={styles.brandPOS}>POS</Text>
             </View>
-            <Text style={styles.tagline}>PUNTO DE VENTA</Text>
+            <Text style={[styles.tagline, { color: colors.textSecondary }]}>PUNTO DE VENTA</Text>
           </View>
 
           {/* Form */}
@@ -99,10 +101,10 @@ export default function LoginScreen() {
               onPress={() => setRememberMe(v => !v)}
               style={styles.rememberRow}
             >
-              <View style={[styles.checkbox, rememberMe && styles.checkboxOn]}>
+              <View style={[styles.checkbox, { borderColor: colors.border }, rememberMe && styles.checkboxOn]}>
                 {rememberMe && <Text style={styles.checkmark}>✓</Text>}
               </View>
-              <Text style={styles.rememberLabel}>Recordarme</Text>
+              <Text style={[styles.rememberLabel, { color: colors.text }]}>Recordarme</Text>
             </Pressable>
 
             <AppButton label="Iniciar sesión" onPress={handleLogin} loading={loading} />
@@ -112,7 +114,7 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.version}>Versión 1.0.0</Text>
+          <Text style={[styles.version, { color: colors.placeholder }]}>Versión 1.0.0</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -120,7 +122,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Brand.cream },
+  safe: { flex: 1 },
   flex: { flex: 1 },
   container: {
     flexGrow: 1,
@@ -132,12 +134,11 @@ const styles = StyleSheet.create({
   logoContainer: { alignItems: 'center', marginBottom: 48 },
   logo: { width: 100, height: 100, marginBottom: 10 },
   brandRow: { flexDirection: 'row', alignItems: 'baseline' },
-  brandGar: { fontSize: 36, fontWeight: '800', color: '#1A1A1A' },
+  brandGar: { fontSize: 36, fontWeight: '800' },
   brandPOS: { fontSize: 36, fontWeight: '800', color: Brand.orange },
   tagline: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8A7060',
     letterSpacing: 3,
     marginTop: 4,
   },
@@ -160,14 +161,13 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 1.5,
-    borderColor: '#CCC',
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkboxOn: { backgroundColor: Brand.orange, borderColor: Brand.orange },
   checkmark: { color: '#fff', fontSize: 13, fontWeight: '700', lineHeight: 16 },
-  rememberLabel: { fontSize: 14, color: '#1A1A1A' },
+  rememberLabel: { fontSize: 14 },
   forgotWrap: { alignItems: 'center', marginTop: 20 },
   forgotText: { fontSize: 14, color: Brand.orange, fontWeight: '500' },
-  version: { fontSize: 12, color: '#B0A090', marginTop: 32 },
+  version: { fontSize: 12, marginTop: 32 },
 });

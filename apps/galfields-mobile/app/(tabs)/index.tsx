@@ -16,30 +16,30 @@ const MENU_ITEMS = [
     subtitle: 'Ver y gestionar\nproductos',
     href: '/products' as const,
   },
-  {
-    icon: 'chart.bar.fill',
-    label: 'Ventas',
-    subtitle: 'Registrar\nventas',
-    href: null,
-  },
+  // {
+  //   icon: 'chart.bar.fill',
+  //   label: 'Ventas',
+  //   subtitle: 'Registrar\nventas',
+  //   href: null,
+  // },
   {
     icon: 'tray.fill',
     label: 'Inventario',
     subtitle: 'Ver stock\nactual',
     href: '/inventory' as const,
   },
-  {
-    icon: 'cart.fill',
-    label: 'Carrito',
-    subtitle: 'Ver carrito\nde compras',
-    href: null,
-  },
-  {
-    icon: 'clock.fill',
-    label: 'Historial',
-    subtitle: 'Ventas y\nmovimientos',
-    href: null,
-  },
+  // {
+  //   icon: 'cart.fill',
+  //   label: 'Carrito',
+  //   subtitle: 'Ver carrito\nde compras',
+  //   href: null,
+  // },
+  // {
+  //   icon: 'clock.fill',
+  //   label: 'Historial',
+  //   subtitle: 'Ventas y\nmovimientos',
+  //   href: null,
+  // },
   {
     icon: 'chart.pie.fill',
     label: 'Reportes',

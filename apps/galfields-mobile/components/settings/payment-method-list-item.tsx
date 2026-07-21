@@ -1,5 +1,6 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 interface PaymentMethodListItemProps {
@@ -11,17 +12,18 @@ interface PaymentMethodListItemProps {
 }
 
 export function PaymentMethodListItem({ name, active, imageUrl, onEdit, onDelete }: PaymentMethodListItemProps) {
+  const colors = useThemeColors();
   return (
-    <View style={styles.container}>
-      <View style={styles.thumb}>
+    <View style={[styles.container, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+      <View style={[styles.thumb, { backgroundColor: colors.border }]}>
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} style={styles.thumbImage} resizeMode="contain" />
         ) : (
-          <IconSymbol name="creditcard.fill" size={22} color="#B0A090" />
+          <IconSymbol name="creditcard.fill" size={22} color={colors.placeholder} />
         )}
       </View>
       <View style={styles.info}>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
           {name}
         </Text>
         <View style={[styles.badge, active ? styles.badgeActive : styles.badgeInactive]}>
@@ -46,25 +48,22 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEE8E0',
   },
   thumb: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#F7F1E8',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   thumbImage: { width: '100%', height: '100%' },
   info: { flex: 1, gap: 4 },
-  title: { fontSize: 15, fontWeight: '600', color: '#1A1A1A' },
+  title: { fontSize: 15, fontWeight: '600' },
   badge: { alignSelf: 'flex-start', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   badgeActive: { backgroundColor: `${Brand.success}1A` },
   badgeInactive: { backgroundColor: `${Brand.danger}14` },

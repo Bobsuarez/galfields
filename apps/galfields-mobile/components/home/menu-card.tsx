@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Brand } from '@/constants/theme';
+import { useThemeColors } from '@/hooks/use-theme-colors';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 interface MenuCardProps {
@@ -10,16 +11,17 @@ interface MenuCardProps {
 }
 
 export function MenuCard({ icon, label, subtitle, onPress }: MenuCardProps) {
+  const colors = useThemeColors();
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.card, { backgroundColor: colors.card }, pressed && styles.pressed]}
     >
       <View style={styles.iconBox}>
         <IconSymbol name={icon as any} size={30} color={Brand.orange} />
       </View>
-      <Text style={styles.label}>{label}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
     </Pressable>
   );
 }
@@ -27,7 +29,6 @@ export function MenuCard({ icon, label, subtitle, onPress }: MenuCardProps) {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
@@ -54,12 +55,10 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1A1A1A',
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 12,
-    color: '#8A7060',
     textAlign: 'center',
     lineHeight: 17,
   },
