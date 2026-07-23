@@ -1,19 +1,29 @@
-//! System-level serial port permissions — a one-shot action, not tied to any
-//! single device (barcode/printer/cash-drawer/etc. all share the same OS-level
-//! access requirement). Dispatched with `trigger_apply_port_permissions` and
+//! System-level peripheral permissions (serial ports + USB printer) — a
+//! one-shot action, not tied to any single device (barcode/printer/
+//! cash-drawer/etc. all share the same OS-level access requirement, just
+//! via different groups — see below). Dispatched with
+//! `trigger_apply_port_permissions` and
 //! reported via `peripheral-permissions-status`/`peripheral-permissions-error`
 //! events, same fire-and-listen convention as the other `trigger_*` commands
 //! (see "Peripheral event model" in CLAUDE.md).
 //!
-//! On Linux, reading/writing `/dev/ttyUSB*`/`/dev/ttyACM*` requires the OS
-//! user to belong to the `dialout` group — the installer is supposed to run
-//! `usermod -aG dialout <user>` but sometimes skips it. This lets the user
+//! On Linux, reading/writing `/dev/ttyUSB*`/`/dev/ttyACM*` (barcode scanner,
+//! RS232-over-USB peripherals) requires the OS user to belong to the
+//! `dialout` group, and USB-class printers exposed as `/dev/usb/lp*` (the
+//! node that registers a directly-connected receipt printer — see field
+//! reports of `trigger_print_invoice` failing silently because of this)
+//! require the `lp` group instead — udev's default rules on Debian/Ubuntu
+//! (and derivatives, which is what field installs run) own that device node
+//! as `root:lp`, a completely separate group from `dialout`. The installer
+//! is supposed to run `usermod -aG dialout,lp <user>` but sometimes skips
+//! it, or an older install only ever added `dialout`. This lets the user
 //! trigger that same command from inside the app instead, elevated via
 //! `pkexec` (the GUI polkit prompt) since a GUI app has no TTY for `sudo`.
-//! Windows serial ports don't have an equivalent OS permission gate — a port
-//! that doesn't show up there is almost always a missing USB-serial driver
-//! (CH340/FTDI/PL2303), which this command can't install, so it just reports
-//! that instead of running anything.
+//! Windows ports don't have an equivalent OS permission gate — a port that
+//! doesn't show up there is almost always a missing USB driver (CH340/FTDI/
+//! PL2303 for serial, the manufacturer's printer driver for USB printers),
+//! which this command can't install, so it just reports that instead of
+//! running anything.
 
 use tauri::{AppHandle, Emitter};
 
@@ -26,8 +36,16 @@ pub struct PermissionsResultPayload {
     pub message: String,
 }
 
+// `(group, human-readable device description)` — every group the OS user
+// needs for the peripherals this app talks to. Add a new entry here (and to
+// the udev-owned device it corresponds to) if a future peripheral class
+// needs another group; `apply_permissions` grants whatever subset is missing
+// in one `usermod` call rather than one call per group.
 #[cfg(target_os = "linux")]
-const LINUX_SERIAL_GROUP: &str = "dialout";
+const LINUX_REQUIRED_GROUPS: &[(&str, &str)] = &[
+    ("dialout", "puertos serie (lector de código de barras)"),
+    ("lp", "impresora USB"),
+];
 
 #[tauri::command]
 pub fn trigger_apply_port_permissions(app_handle: AppHandle) {
@@ -50,26 +68,37 @@ fn apply_permissions() -> Result<PermissionsResultPayload, String> {
 
     let username = current_username()?;
 
-    if user_in_group(&username, LINUX_SERIAL_GROUP) {
+    let missing: Vec<&(&str, &str)> = LINUX_REQUIRED_GROUPS
+        .iter()
+        .filter(|(group, _)| !user_in_group(&username, group))
+        .collect();
+
+    if missing.is_empty() {
+        let groups = LINUX_REQUIRED_GROUPS
+            .iter()
+            .map(|(g, _)| *g)
+            .collect::<Vec<_>>()
+            .join(", ");
         logging::step(
             "system_permissions::apply_permissions",
-            format!("{username} already in {LINUX_SERIAL_GROUP}"),
+            format!("{username} already in {groups}"),
         );
         return Ok(PermissionsResultPayload {
             already_granted: true,
-            message: format!(
-                "Tu usuario ya pertenece al grupo '{LINUX_SERIAL_GROUP}'. Los puertos serie ya están disponibles."
-            ),
+            message: "Tu usuario ya pertenece a los grupos necesarios. Los puertos serie y la impresora USB ya están disponibles.".to_string(),
         });
     }
 
+    let missing_groups = missing.iter().map(|(g, _)| *g).collect::<Vec<_>>().join(",");
+    let missing_descriptions = missing.iter().map(|(_, d)| *d).collect::<Vec<_>>().join(", ");
+
     logging::step(
         "system_permissions::apply_permissions",
-        format!("requesting elevation to add {username} to {LINUX_SERIAL_GROUP}"),
+        format!("requesting elevation to add {username} to {missing_groups}"),
     );
 
     let status = Command::new("pkexec")
-        .args(["usermod", "-aG", LINUX_SERIAL_GROUP, &username])
+        .args(["usermod", "-aG", &missing_groups, &username])
         .status()
         .map_err(|e| format!("No se pudo iniciar la solicitud de permisos (pkexec): {e}"))?;
 
@@ -82,7 +111,7 @@ fn apply_permissions() -> Result<PermissionsResultPayload, String> {
     Ok(PermissionsResultPayload {
         already_granted: false,
         message: format!(
-            "Permisos aplicados. Cierra sesión (o reinicia el equipo) y vuelve a abrir Galfield POS para que el acceso a puertos serie ('{LINUX_SERIAL_GROUP}') tenga efecto."
+            "Permisos aplicados ({missing_descriptions}). Cierra sesión (o reinicia el equipo) y vuelve a abrir Galfield POS para que el acceso tenga efecto."
         ),
     })
 }

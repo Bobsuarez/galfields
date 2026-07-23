@@ -28,41 +28,46 @@ defineExpose({ reload: loadProducts })
       </div>
     </div>
 
-    <div class="category-tabs">
-      <button
-        v-for="cat in categories"
-        :key="cat.id"
-        class="category-tab"
-        :class="{ 'category-tab--active': activeCategory === cat.id }"
-        @click="selectCategory(cat.id)"
-      >
-        {{ cat.name }}
-      </button>
-    </div>
+    <div class="catalog-body">
+      <nav class="category-rail" aria-label="Categorías">
+        <button
+          v-for="cat in categories"
+          :key="cat.id"
+          class="category-rail-item"
+          :class="{ 'category-rail-item--active': activeCategory === cat.id }"
+          :title="cat.name"
+          @click="selectCategory(cat.id)"
+        >
+          <span v-if="activeCategory === cat.id" class="category-rail-indicator" />
+          <span class="category-rail-name">{{ cat.name }}</span>
+          <span class="category-rail-count">{{ cat.count }}</span>
+        </button>
+      </nav>
 
-    <div class="product-grid">
-      <template v-if="isLoading">
-        <div class="empty-state">
-          <span style="font-size: 32px">⏳</span>
-          <p>Cargando catálogo...</p>
-        </div>
-      </template>
-      <template v-else>
-        <ProductCard
-          v-for="product in filteredProducts"
-          :key="product.id"
-          :product="product"
-          @add="emit('product-added', $event)"
-        />
-        <div v-if="filteredProducts.length === 0 && searchQuery" class="empty-state">
-          <span style="font-size: 32px">🔍</span>
-          <p>Sin resultados para "{{ searchQuery }}"</p>
-        </div>
-        <div v-else-if="filteredProducts.length === 0" class="empty-state">
-          <span style="font-size: 32px">📦</span>
-          <p>Aún no hay productos sincronizados. Ve a Sincronización para descargar el catálogo.</p>
-        </div>
-      </template>
+      <div class="product-grid">
+        <template v-if="isLoading">
+          <div class="empty-state">
+            <span style="font-size: 32px">⏳</span>
+            <p>Cargando catálogo...</p>
+          </div>
+        </template>
+        <template v-else>
+          <ProductCard
+            v-for="product in filteredProducts"
+            :key="product.id"
+            :product="product"
+            @add="emit('product-added', $event)"
+          />
+          <div v-if="filteredProducts.length === 0 && searchQuery" class="empty-state">
+            <span style="font-size: 32px">🔍</span>
+            <p>Sin resultados para "{{ searchQuery }}"</p>
+          </div>
+          <div v-else-if="filteredProducts.length === 0" class="empty-state">
+            <span style="font-size: 32px">📦</span>
+            <p>Aún no hay productos sincronizados. Ve a Sincronización para descargar el catálogo.</p>
+          </div>
+        </template>
+      </div>
     </div>
   </section>
 </template>
@@ -125,41 +130,85 @@ defineExpose({ reload: loadProducts })
   color: var(--color-text-dim);
 }
 
-.category-tabs {
+/* Category filter is a vertical rail (not horizontal tabs): with a long,
+   cloud-derived category list, horizontal scrolling meant reaching the last
+   one took repeated scrolling. A vertical list scrolls independently of the
+   product grid and every category is one glance away, regardless of count. */
+.catalog-body {
+  flex: 1;
   display: flex;
-  gap: 6px;
-  padding: 0 16px 10px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.category-rail {
+  width: 15%;
   flex-shrink: 0;
-  overflow-x: auto;
+  overflow-y: auto;
+  padding: 2px 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-right: 1px solid var(--color-border);
 }
 
-.category-tabs::-webkit-scrollbar {
-  height: 2px;
+.category-rail-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  text-align: left;
+  transition: color 0.15s, background 0.15s;
 }
 
-.category-tab {
-  padding: 5px 12px;
-  border-radius: 20px;
+.category-rail-item:hover {
+  background: rgba(242, 141, 53, 0.07);
+  color: var(--color-cream);
+}
+
+.category-rail-item--active {
+  color: var(--color-primary);
+  background: rgba(242, 141, 53, 0.1);
+}
+
+.category-rail-indicator {
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  background: var(--color-primary);
+  border-radius: 0 2px 2px 0;
+}
+
+.category-rail-name {
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
   font-weight: 500;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
   white-space: nowrap;
-  transition: all 0.15s;
-  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.category-tab:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.category-tab--active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #0D0D0D;
+.category-rail-item--active .category-rail-name {
   font-weight: 600;
+}
+
+.category-rail-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+}
+
+.category-rail-item--active .category-rail-count {
+  color: var(--color-primary);
 }
 
 /* Fixed-size columns (matching ProductCard's own fixed width) instead of
@@ -168,7 +217,7 @@ defineExpose({ reload: loadProducts })
 .product-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 0 16px 16px;
+  padding: 0 16px 16px 12px;
   display: grid;
   grid-template-columns: repeat(auto-fill, 176px);
   justify-content: start;

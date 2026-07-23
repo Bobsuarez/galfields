@@ -22,10 +22,17 @@ export function useInventory() {
   watch([searchQuery, activeCategory], () => { currentPage.value = 1 })
 
   const categories = computed<ProductCategory[]>(() => {
-    const names = new Set(products.value.filter(p => p.category.trim()).map(p => p.category))
+    const counts = new Map<string, number>()
+    for (const p of products.value) {
+      const name = p.category.trim()
+      if (!name) continue
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
     return [
-      { id: 'all', name: 'Todas las categorías' },
-      ...[...names].sort().map(name => ({ id: name, name })),
+      { id: 'all', name: 'Todas las categorías', count: products.value.length },
+      ...[...counts.keys()]
+        .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }))
+        .map(name => ({ id: name, name, count: counts.get(name)! })),
     ]
   })
 

@@ -30,11 +30,12 @@ async function scanPorts() {
 }
 
 // ── System-level port permissions ──────────────────────────────────────────────
-// Installer sometimes skips granting OS access to serial ports (Linux needs the
-// user in the `dialout` group); this lets the user apply it from here instead.
-// Explicit button, not triggered on every dropdown change, since it may prompt
-// for the admin password (pkexec) and doing that on each selection would be
-// disruptive while the user is still trying different ports.
+// Installer sometimes skips granting OS access to peripherals (Linux needs the
+// user in the `dialout` group for serial ports and the `lp` group for USB
+// printers — see system_permissions.rs); this lets the user apply both from
+// here instead. Explicit button, not triggered on every dropdown change, since
+// it may prompt for the admin password (pkexec) and doing that on each
+// selection would be disruptive while the user is still trying different ports.
 
 const permissionsBus = useSystemPermissionsBus()
 const isApplyingPermissions = ref(false)
