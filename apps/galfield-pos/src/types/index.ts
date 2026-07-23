@@ -8,6 +8,7 @@ export interface NavItem {
 export interface ProductCategory {
   id: string
   name: string
+  count: number
 }
 
 export interface Product {
