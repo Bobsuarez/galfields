@@ -21,6 +21,7 @@ export interface InvoiceSummary {
   totalAmount: number;
   discountAmount: number;
   itemCount: number;
+  cancelledAt: string | null;
 }
 
 export interface InvoiceLine {
@@ -46,6 +47,7 @@ export interface InvoiceDetail {
   taxAmount: number;
   items: InvoiceLine[];
   payments: InvoicePayment[];
+  cancelledAt: string | null;
 }
 
 export interface InventoryRow {
@@ -131,6 +133,27 @@ export async function fetchInvoices(range?: DateRange, page = 0, size = 20): Pro
 
 export function fetchInvoiceDetail(transactionId: number): Promise<InvoiceDetail> {
   return getJson(`/api/reports/invoices/${transactionId}`);
+}
+
+/** The only non-GET call in this file — `getJson` is GET-only by
+ * construction (plain `fetch(url)`, no method/body), so this builds its
+ * own POST instead of widening that helper for a single caller. Hits
+ * `/api/sales/{id}/cancel` (SalesController), not `/api/reports/*` — this
+ * file is otherwise a read-only mirror of the reports API, but invoice
+ * cancellation belongs next to `fetchInvoiceDetail`/`fetchInvoices` from
+ * the screen's point of view. */
+export async function cancelInvoice(transactionId: number): Promise<void> {
+  const path = `/api/sales/${transactionId}/cancel`;
+  const url = `${apiBaseUrl()}${path}`;
+  const response = await fetch(url, { method: 'POST' });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    console.error(`[reports-api] POST ${path} -> ${response.status}`, text);
+    throw new Error(parseApiErrorMessage(response.status, text));
+  }
+
+  console.log(`[reports-api] POST ${path} -> ${response.status}`);
 }
 
 export async function fetchInventory(page = 0, size = 20): Promise<Page<InventoryRow>> {

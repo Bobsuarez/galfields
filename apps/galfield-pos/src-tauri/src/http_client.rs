@@ -63,6 +63,14 @@ pub async fn get(url: &str) -> Result<HttpResponse, String> {
     send(client().get(url)).await
 }
 
+/// For endpoints that take no request body (e.g. the `/cancel` actions) —
+/// `post_json` always requires a serializable body, which would force
+/// callers with nothing to send to serialize `()`/`null` for no reason.
+pub async fn post(url: &str) -> Result<HttpResponse, String> {
+    logging::step("http_client::post", format!("--> POST {url}"));
+    send(client().post(url)).await
+}
+
 pub async fn post_json<T: Serialize>(url: &str, body: &T) -> Result<HttpResponse, String> {
     let body_json = serde_json::to_string(body).unwrap_or_else(|_| "<unserializable body>".to_string());
     logging::step("http_client::post_json", format!("--> POST {url} | body: {body_json}"));

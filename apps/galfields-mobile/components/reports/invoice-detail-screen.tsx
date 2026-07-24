@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ReportHeader } from './report-header';
 import { Brand } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { formatCurrency } from '@/utils/currency';
-import { fetchInvoiceDetail, InvoiceDetail } from '@/services/reports-api';
+import { cancelInvoice, fetchInvoiceDetail, InvoiceDetail } from '@/services/reports-api';
 
 interface InvoiceDetailScreenProps {
   transactionId: number;
@@ -15,8 +15,9 @@ export function InvoiceDetailScreen({ transactionId }: InvoiceDetailScreenProps)
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -35,6 +36,34 @@ export function InvoiceDetailScreen({ transactionId }: InvoiceDetailScreenProps)
     };
   }, [transactionId]);
 
+  useEffect(() => load(), [load]);
+
+  const handleCancel = () => {
+    Alert.alert(
+      'Cancelar factura',
+      `¿Cancelar la factura #${transactionId}? Esto repone el stock descontado y no se puede deshacer.`,
+      [
+        { text: 'Volver', style: 'cancel' },
+        {
+          text: 'Cancelar factura',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              await cancelInvoice(transactionId);
+              load();
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Error desconocido';
+              Alert.alert('No se pudo cancelar', msg, [{ text: 'OK' }]);
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ReportHeader title={`Factura #${transactionId}`} />
@@ -46,6 +75,11 @@ export function InvoiceDetailScreen({ transactionId }: InvoiceDetailScreenProps)
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.summaryCard}>
+            {invoice.cancelledAt ? (
+              <View style={styles.cancelledBadge}>
+                <Text style={styles.cancelledBadgeText}>Cancelada</Text>
+              </View>
+            ) : null}
             <Text style={styles.summaryDate}>
               {new Date(invoice.transactionDate).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}
             </Text>
@@ -82,6 +116,18 @@ export function InvoiceDetailScreen({ transactionId }: InvoiceDetailScreenProps)
               </View>
             ))}
           </View>
+
+          {!invoice.cancelledAt ? (
+            <Pressable
+              onPress={handleCancel}
+              disabled={cancelling}
+              style={({ pressed }) => [styles.cancelButton, (pressed || cancelling) && styles.pressed]}
+            >
+              <Text style={styles.cancelButtonText}>
+                {cancelling ? 'Cancelando…' : 'Cancelar factura'}
+              </Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       )}
     </View>
@@ -120,4 +166,22 @@ const styles = StyleSheet.create({
   lineName: { fontSize: 14, fontWeight: '600' },
   lineMeta: { fontSize: 12 },
   lineSubtotal: { fontSize: 14, fontWeight: '700' },
+  cancelledBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 2,
+  },
+  cancelledBadgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  cancelButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Brand.danger,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  cancelButtonText: { fontSize: 14, fontWeight: '700', color: Brand.danger },
+  pressed: { opacity: 0.6 },
 });

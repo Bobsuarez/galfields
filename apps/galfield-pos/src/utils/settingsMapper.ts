@@ -32,9 +32,15 @@ export const DEFAULT_SETTINGS: ConfigSettings = {
   sync: {
     backupInterval: '30min',
     priceSyncHours: 24,
-    invoicePrefix: 'FAC-',
     salesRetryMinutes: 5,
     apiBaseUrl: 'https://galfields.kinforgeworks.com',
+  },
+  invoicing: {
+    terminalCode: '',
+    prefix: '',
+    rangeStart: 0,
+    rangeEnd: 0,
+    nextNumber: 0,
   },
   styles: {
     theme: 'dark',
@@ -87,9 +93,14 @@ export function applyRecord(target: ConfigSettings, record: Record<string, strin
 
   target.sync.backupInterval   = str('sync.backup_interval',      target.sync.backupInterval)
   target.sync.priceSyncHours   = num('sync.price_sync_hours',     target.sync.priceSyncHours)
-  target.sync.invoicePrefix    = str('sync.invoice_prefix',       target.sync.invoicePrefix)
   target.sync.salesRetryMinutes = num('sync.sales_retry_minutes', target.sync.salesRetryMinutes)
   target.sync.apiBaseUrl       = str('sync.api_base_url',         target.sync.apiBaseUrl)
+
+  target.invoicing.terminalCode = str('invoicing.terminal_code', target.invoicing.terminalCode)
+  target.invoicing.prefix       = str('invoicing.prefix',        target.invoicing.prefix)
+  target.invoicing.rangeStart   = num('invoicing.range_start',   target.invoicing.rangeStart)
+  target.invoicing.rangeEnd     = num('invoicing.range_end',     target.invoicing.rangeEnd)
+  target.invoicing.nextNumber   = num('invoicing.next_number',   target.invoicing.nextNumber)
 
   target.styles.theme         = str('styles.theme',          target.styles.theme) as ConfigSettings['styles']['theme']
   target.styles.primaryColor  = str('styles.primary_color',  target.styles.primaryColor)
@@ -136,9 +147,14 @@ export function settingsToRecord(s: ConfigSettings): Record<string, string> {
 
     'sync.backup_interval':     s.sync.backupInterval,
     'sync.price_sync_hours':    String(s.sync.priceSyncHours),
-    'sync.invoice_prefix':      s.sync.invoicePrefix,
     'sync.sales_retry_minutes': String(s.sync.salesRetryMinutes),
     'sync.api_base_url':        s.sync.apiBaseUrl,
+
+    // Only terminalCode is editable from Configuración — prefix/range/
+    // nextNumber are a read-only snapshot of what the cloud last assigned
+    // (see sync_invoice_numbering), and must never be overwritten by a
+    // stale draft on save.
+    'invoicing.terminal_code': s.invoicing.terminalCode,
 
     'styles.theme':          s.styles.theme,
     'styles.primary_color':  s.styles.primaryColor,

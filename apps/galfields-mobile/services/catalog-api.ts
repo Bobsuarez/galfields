@@ -118,3 +118,51 @@ export const locationsApi = {
     mapLocation(await request<RemoteLocation>(`/api/locations/${id}`, { method: 'PUT', body: JSON.stringify(data) })),
   remove: (id: number): Promise<void> => request<void>(`/api/locations/${id}`, { method: 'DELETE' }),
 };
+
+// ── Invoice numbering ranges ──
+// One row per POS terminal — a DIAN-authorized numeric range (prefix +
+// [rangeStart, rangeEnd]) so no two terminals ever mint the same invoice
+// number while working offline. See backend/pos's CLAUDE.md
+// ("Invoice numbering ranges") and apps/galfield-pos's CLAUDE.md.
+interface RemoteInvoiceNumberingRange {
+  rangeId: number;
+  terminalCode: string;
+  prefix: string;
+  rangeStart: number;
+  rangeEnd: number;
+}
+
+export interface CatalogInvoicingRange {
+  id: number;
+  // Reuses CatalogScreen's generic `{ id, name }` shape — the terminal code
+  // *is* what identifies each row, so it doubles as the display name.
+  name: string;
+  prefix: string;
+  rangeStart: number;
+  rangeEnd: number;
+}
+
+export interface InvoicingRangeFormData {
+  terminalCode: string;
+  prefix: string;
+  rangeStart: number;
+  rangeEnd: number;
+}
+
+const mapInvoicingRange = (r: RemoteInvoiceNumberingRange): CatalogInvoicingRange => ({
+  id: r.rangeId,
+  name: r.terminalCode,
+  prefix: r.prefix,
+  rangeStart: r.rangeStart,
+  rangeEnd: r.rangeEnd,
+});
+
+export const invoicingRangesApi = {
+  list: async (): Promise<CatalogInvoicingRange[]> =>
+    (await request<RemoteInvoiceNumberingRange[]>('/api/invoice-numbering-ranges')).map(mapInvoicingRange),
+  create: async (data: InvoicingRangeFormData): Promise<CatalogInvoicingRange> =>
+    mapInvoicingRange(await request<RemoteInvoiceNumberingRange>('/api/invoice-numbering-ranges', { method: 'POST', body: JSON.stringify(data) })),
+  update: async (id: number, data: InvoicingRangeFormData): Promise<CatalogInvoicingRange> =>
+    mapInvoicingRange(await request<RemoteInvoiceNumberingRange>(`/api/invoice-numbering-ranges/${id}`, { method: 'PUT', body: JSON.stringify(data) })),
+  remove: (id: number): Promise<void> => request<void>(`/api/invoice-numbering-ranges/${id}`, { method: 'DELETE' }),
+};

@@ -95,7 +95,6 @@ export interface ConfigSettings {
   sync: {
     backupInterval: string
     priceSyncHours: number
-    invoicePrefix: string
     /** How often the background loop retries pushing pending sales to the
      * cloud (minutes) — deliberately separate from priceSyncHours, which
      * governs pulling the catalog down (see sales_sync.rs). */
@@ -105,6 +104,22 @@ export interface ConfigSettings {
      * (http_client::api_base_url), not cached, so changing it here takes
      * effect on the next sync without restarting the app. */
     apiBaseUrl: string
+  }
+  /** DIAN-compliant invoice numbering — prefix + authorized range assigned
+   * centrally from apps/galfields-mobile (Configuración → Numeración de
+   * facturas) per terminal, pulled down read-only via
+   * `sync_invoice_numbering` (see invoice_numbering.rs). Only `terminalCode`
+   * is user-editable here; the rest is a snapshot of what the cloud last
+   * assigned to that code. */
+  invoicing: {
+    terminalCode: string
+    prefix: string
+    rangeStart: number
+    rangeEnd: number
+    /** Next number this terminal will issue — advances locally with every
+     * sale (see invoices.rs::create_sale), independent of any other
+     * terminal's counter. */
+    nextNumber: number
   }
   styles: {
     theme: 'dark' | 'light' | 'auto'

@@ -151,7 +151,6 @@ export function useCheckout(onComplete: () => void) {
           discount:       sale.discount,
           total:          sale.total,
           amountReceived: sale.amountReceived,
-          invoicePrefix:  config.sync.invoicePrefix,
         },
       )
 

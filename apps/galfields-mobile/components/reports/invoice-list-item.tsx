@@ -24,7 +24,14 @@ export function InvoiceListItem({ invoice, onPress }: InvoiceListItemProps) {
       ]}
     >
       <View style={styles.info}>
-        <Text style={[styles.title, { color: colors.text }]}>Factura #{invoice.transactionId}</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.text }]}>Factura #{invoice.transactionId}</Text>
+          {invoice.cancelledAt ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Cancelada</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={[styles.meta, { color: colors.textSecondary }]}>
           {date.toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })} · {invoice.employeeName} ·{' '}
           {invoice.itemCount} ítem{invoice.itemCount === 1 ? '' : 's'}
@@ -47,7 +54,15 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.7 },
   info: { flex: 1, gap: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { fontSize: 14, fontWeight: '600' },
   meta: { fontSize: 11 },
   amount: { fontSize: 15, fontWeight: '700', color: Brand.orange },
+  badge: {
+    backgroundColor: `${Brand.danger}1a`,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  badgeText: { fontSize: 10, fontWeight: '700', color: Brand.danger },
 });

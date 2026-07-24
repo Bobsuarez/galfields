@@ -12,5 +12,6 @@ public record InvoiceDetailResponse(
         BigDecimal discountAmount,
         BigDecimal taxAmount,
         List<InvoiceLineResponse> items,
-        List<InvoicePaymentResponse> payments) {
+        List<InvoicePaymentResponse> payments,
+        LocalDateTime cancelledAt) {
 }

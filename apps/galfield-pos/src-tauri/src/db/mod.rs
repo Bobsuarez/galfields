@@ -47,6 +47,8 @@ impl Database {
         self.apply_migration("005_payment_method_active", include_str!("../../migrations/005_payment_method_active.sql"))?;
         self.apply_migration("006_payment_method_remote_link", include_str!("../../migrations/006_payment_method_remote_link.sql"))?;
         self.apply_migration("007_api_base_url_setting", include_str!("../../migrations/007_api_base_url_setting.sql"))?;
+        self.apply_migration("008_invoice_snapshot", include_str!("../../migrations/008_invoice_snapshot.sql"))?;
+        self.apply_migration("009_sales_cancellation", include_str!("../../migrations/009_sales_cancellation.sql"))?;
         Ok(())
     }
 

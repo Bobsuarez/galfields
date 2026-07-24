@@ -63,4 +63,9 @@ public class SalesTransaction {
     /** Idempotency key from the reporting POS terminal - see SalesService. */
     @Column(name = "client_event_id", unique = true, length = 100)
     private String clientEventId;
+
+    /** Separate axis from paymentStatus - a Paid sale that gets voided is
+     * still "was Paid", just cancelled now. Null means active. */
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
 }

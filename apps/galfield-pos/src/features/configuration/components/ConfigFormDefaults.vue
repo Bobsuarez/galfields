@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import type { ConfigSettings } from '../../../types'
 import { usePaymentMethods } from '../../../composables/usePaymentMethods'
+import { applyRecord } from '../../../utils/settingsMapper'
 import AppToggle from '../../../components/shared/AppToggle.vue'
 
 const props = defineProps<{ settings: ConfigSettings }>()
@@ -14,6 +16,27 @@ async function browseInvoiceFolder() {
   const folder = await open({ directory: true, multiple: false })
   if (typeof folder === 'string') {
     props.settings.defaults.invoiceArchiveFolder = folder
+  }
+}
+
+// ── Invoice numbering (prefix/range assigned centrally from mobile) ────────
+const isSyncingInvoicing = ref(false)
+const invoicingSyncMessage = ref('')
+
+async function syncInvoicing() {
+  isSyncingInvoicing.value = true
+  try {
+    const result = await invoke<{ configured: boolean; message: string }>('sync_invoice_numbering')
+    invoicingSyncMessage.value = result.message
+    // The command writes straight to app_settings — pull it back into this
+    // draft so the read-only fields below reflect it immediately, instead
+    // of only after leaving and re-entering Configuración.
+    const record = await invoke<Record<string, string>>('get_settings')
+    applyRecord(props.settings, record)
+  } catch (e) {
+    invoicingSyncMessage.value = String(e)
+  } finally {
+    isSyncingInvoicing.value = false
   }
 }
 </script>
@@ -124,8 +147,23 @@ async function browseInvoiceFolder() {
         </div>
       </div>
       <div class="field">
-        <label class="field-label">Prefijo de Facturas</label>
-        <input v-model="settings.sync.invoicePrefix" class="field-input" placeholder="FAC-" />
+        <label class="field-label">Código de esta terminal</label>
+        <input v-model="settings.invoicing.terminalCode" class="field-input" placeholder="CAJA-01" />
+        <p class="field-hint">Identifica esta terminal ante la nube — se usa para asignarle su prefijo y rango de facturación desde la app móvil (Configuración → Numeración de facturas).</p>
+      </div>
+      <div class="field">
+        <label class="field-label">Numeración de Facturas (asignada desde mobile)</label>
+        <input
+          :value="settings.invoicing.prefix
+            ? `${settings.invoicing.prefix} · ${String(settings.invoicing.rangeStart).padStart(6, '0')}–${String(settings.invoicing.rangeEnd).padStart(6, '0')} · Próximo: ${String(settings.invoicing.nextNumber).padStart(6, '0')}`
+            : 'Sin sincronizar'"
+          readonly
+          class="field-input"
+        />
+        <button type="button" class="backup-btn" :disabled="isSyncingInvoicing" @click="syncInvoicing">
+          {{ isSyncingInvoicing ? 'Actualizando…' : '🔄 Actualizar numeración' }}
+        </button>
+        <p v-if="invoicingSyncMessage" class="field-hint">{{ invoicingSyncMessage }}</p>
       </div>
       <button class="backup-btn">
         💾 Guardar Respaldo Ahora

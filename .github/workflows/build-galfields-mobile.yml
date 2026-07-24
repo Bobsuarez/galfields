@@ -1,0 +1,55 @@
+name: Build — galfields-mobile (EAS)
+
+# Primer CI de esta app — hasta ahora todo `eas build` era manual desde la
+# terminal del dueño. Solo corre con un tag de versión
+# (galfields-mobile-vX.Y.Z), nunca en cada push — un build de EAS es lento/
+# costoso y no tiene sentido dispararlo en cada commit como el de escritorio.
+# No corre `eas submit`: publicar a la Play Store se sigue haciendo a mano.
+
+on:
+  push:
+    tags:
+      - 'galfields-mobile-v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/galfields-mobile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/galfields-mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Evita publicar un build de EAS bajo un tag que no coincide con lo
+      # que la propia app reporta como su versión (mismo guard que el de
+      # escritorio en build-galfield-pos-desktop.yml).
+      - name: Verify tag matches app.json version
+        shell: bash
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#galfields-mobile-v}"
+          CONF_VERSION=$(node -p "require('./app.json').expo.version")
+          if [ "$TAG_VERSION" != "$CONF_VERSION" ]; then
+            echo "::error::El tag dice v$TAG_VERSION pero app.json dice $CONF_VERSION — actualiza la versión antes de taggear."
+            exit 1
+          fi
+          echo "Versión verificada: $CONF_VERSION"
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android (production)
+        run: eas build --platform android --profile production --non-interactive

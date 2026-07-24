@@ -9,5 +9,6 @@ public record InvoiceSummaryResponse(
         String employeeName,
         BigDecimal totalAmount,
         BigDecimal discountAmount,
-        long itemCount) {
+        long itemCount,
+        LocalDateTime cancelledAt) {
 }
