@@ -82,13 +82,18 @@ fn mark_synced(state: &State<'_, AppState>, sale_id: i64) -> Result<(), String> 
 fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
+    // A sale cancelled locally before it ever synced (see
+    // sale_history::cancel_sale) has nothing worth reporting to the cloud —
+    // it never leaves this exclusion, unlike synced_at, which flips once
+    // pushed.
+
     let mut sales_stmt = db
         .conn
         .prepare(
             "SELECT s.id, s.sync_uuid, s.discount, s.total, pm.remote_payment_method_id
              FROM sales s
              JOIN payment_method pm ON pm.id = s.payment_method
-             WHERE s.synced_at IS NULL
+             WHERE s.synced_at IS NULL AND s.cancelled_at IS NULL
              ORDER BY s.id ASC",
         )
         .map_err(|e| e.to_string())?;

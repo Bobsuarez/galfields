@@ -1,6 +1,7 @@
 mod catalog_sync;
 mod db;
 mod http_client;
+mod invoice_numbering;
 mod invoices;
 mod logging;
 mod payment_methods;
@@ -9,6 +10,7 @@ mod peripheral_manager;
 mod peripherals;
 mod products;
 mod reports;
+mod sale_history;
 mod sales_sync;
 mod settings;
 mod sync;
@@ -95,6 +97,10 @@ pub fn run() {
             sales_sync::push_pending_sales,
             catalog_sync::sync_categories,
             catalog_sync::sync_payment_methods,
+            invoice_numbering::sync_invoice_numbering,
+            sale_history::list_sales,
+            sale_history::get_sale_detail,
+            sale_history::cancel_sale,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

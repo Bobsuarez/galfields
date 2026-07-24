@@ -101,6 +101,15 @@ Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON 
 
 **Indispensable:** `ProductService` hard-codes the location named `Bogotá - Chapinero` (`DEFAULT_LOCATION_NAME`) as the inventory location for every product/variant created or updated through `/api/products` — it's not configurable yet. Renaming or deleting that location breaks product creation/stock updates (`ResourceNotFoundException` on create; deletion is blocked by the FK-conflict 409 once any inventory row references it, but renaming it isn't blocked by anything). If you need a different default location, update `ProductService.DEFAULT_LOCATION_NAME` too, don't just change the row via `/api/locations`.
 
+## Invoice numbering ranges (`/api/invoice-numbering-ranges`)
+
+`InvoiceNumberingRangeController` → `InvoiceNumberingRangeService` → `InvoiceNumberingRangeRepository`, backed by `invoice_numbering_ranges` (migration `V5__invoice_numbering_ranges.sql`). This is the cloud side of DIAN-compliant invoice numbering: each desktop POS terminal (`apps/galfield-pos`) is authorized a non-overlapping numeric range (`prefix` + `[range_start, range_end]`), assigned centrally from the mobile app's Configuración → Numeración de facturas (`apps/galfields-mobile`'s CLAUDE.md), so no two terminals can ever mint the same invoice number while working offline.
+
+- One row per terminal — `terminal_code UNIQUE` (e.g. `"CAJA-01"`, a plain string the terminal owner types once into the desktop POS's Configuración, not a real device/auth identity yet — there is no `terminals`/`devices`/login concept anywhere in this schema today).
+- Standard CRUD, same shape as `/api/categories`/`/api/brands`/`/api/locations` above: `POST`/`GET` (list, ordered by `terminal_code`)/`GET {id}`/`PUT {id}`/`DELETE {id}`. A duplicate `terminal_code` on create/update falls through to the same generic `DataIntegrityViolationException` → 409 handling as the FK-conflict case above — no bespoke uniqueness check needed.
+- **`GET /api/invoice-numbering-ranges/by-terminal/{terminalCode}`** is the one non-CRUD addition: what the desktop POS calls to pull its own assigned range by the code it has configured locally, without needing to know its numeric `rangeId`. 404s (via `ResourceNotFoundException`) if no range has been assigned to that code yet.
+- This endpoint only hands out the *authorized range* — it does not track which numbers within that range have actually been consumed. Each terminal owns that bookkeeping locally (`apps/galfield-pos`'s `app_settings` key `invoicing.next_number`) and is expected not to re-pull/reset until its current range is exhausted; the cloud has no visibility into how much of a range is left.
+
 ## Inventory adjustment endpoint (`POST /api/inventory/adjustments`)
 
 `InventoryController` → `InventoryService` → `InventoryRepository`/`StockAdjustmentRepository`. This is how offline-first clients (currently: the desktop POS's outbox, `apps/galfield-pos`'s `sales_sync.rs` — see that repo's CLAUDE.md) report stock changes that already happened locally (a sale decrements; a future return/manual correction could increment), batched one call per sale. **Note:** the POS outbox now calls `POST /api/sales` instead (see "Sale recording endpoint" below), which applies this same adjustment internally — this endpoint is still hit directly for that, and remains available as a standalone primitive for any future caller that only needs a stock delta, not a full sale record:
@@ -144,6 +153,15 @@ Deleting a row still referenced by a product/inventory/sale/payment (FK, no `ON 
 - **Employee attribution is a placeholder.** The desktop POS has no real per-cashier login, so every sale is attributed to one seeded employee (`username = 'pos-terminal'`, seeded by `V4__sales_recording.sql` along with a placeholder `employee_roles`/`attach_files` row it needs to satisfy the `BIGSERIAL` NOT-NULL gotcha above). This employee can't log in anywhere — there's no employee auth endpoint in this codebase at all yet — it exists purely as a valid FK target. Revisit `SalesService.DEFAULT_EMPLOYEE_USERNAME` when real cashier login exists.
 - `taxAmount` is always `0` — the local POS schema has no IVA/tax breakdown to report, so there's nothing to send.
 - Scoped to the same `DEFAULT_LOCATION_NAME` as everything else (see above) — no per-request location yet.
+
+### Cancelling a sale (`POST /api/sales/{transactionId}/cancel`, `POST /api/sales/by-client-event/{clientEventId}/cancel`)
+
+Two entry points into the same `SalesService#cancel` logic, because the two callers each only know one identifier: mobile's Historial de facturas already has `transactionId` (from `GET /api/reports/invoices`); the desktop POS terminal never learns its own transaction's `transactionId` (it's never returned to nor stored by `apps/galfield-pos`'s `sales_sync.rs`) — the only thing it has is the `clientEventId` (`sync_uuid`) it originally reported the sale under, which **is** this transaction's `clientEventId`.
+
+- `cancelledAt` (migration `V6__sales_cancellation.sql`) is a separate axis from `paymentStatus` — a `Paid` sale that gets voided is still "was Paid", just cancelled now; `paymentStatus` is never touched by cancellation. Cancelling an already-cancelled sale throws `InvalidStateException` → 409.
+- **Reverses the stock decrement** the same way `recordSale` applied it: builds a `StockAdjustmentBatchRequest` from the transaction's `sale_items` (`SaleItemRepository.findByTransaction_TransactionId`, one `StockAdjustmentItemRequest(variantId, +quantity)` per line — positive this time) and calls `InventoryService.applyAdjustments`. **Must use a different `clientEventId`** than the original sale (`"cancel-" + clientEventId`) — `stock_adjustments`' idempotency key is `(clientEventId, variantId)`, so reusing the original would look "already processed" to `applyOne` and the reversal would silently never apply.
+- Both endpoints return `204 No Content` on success — nothing to hand back beyond confirmation.
+- No cancellation reason/note field, and no time limit on when a sale can be cancelled — kept deliberately minimal until a real need for either surfaces.
 
 ## Report endpoints (`GET /api/reports/*`)
 

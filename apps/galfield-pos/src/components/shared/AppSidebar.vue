@@ -23,6 +23,7 @@ const navItems: NavItem[] = [
     route: "/inventario",
   },
   { id: "reportes", label: "Reportes", icon: "bar-chart", route: "/reportes" },
+  { id: "facturas", label: "Facturas", icon: "file-text", route: "/facturas" },
  /* {
     id: "proveedores",
     label: "Proveedores",

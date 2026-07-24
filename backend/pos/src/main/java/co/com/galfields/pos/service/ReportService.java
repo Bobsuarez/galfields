@@ -89,7 +89,8 @@ public class ReportService {
                 transaction.getDiscountAmount(),
                 transaction.getTaxAmount(),
                 items,
-                payments);
+                payments,
+                transaction.getCancelledAt());
     }
 
     /** Covers "Inventario actual". */

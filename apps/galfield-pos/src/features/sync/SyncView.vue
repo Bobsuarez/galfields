@@ -64,6 +64,9 @@ async function handleSync() {
           ({{ summary.paymentMethodsDeactivated }} desactivados)
         </span>
       </p>
+      <p class="sync-result-text">
+        {{ summary.invoiceNumberingMessage }}
+      </p>
       <div class="sync-actions">
         <button class="sync-btn sync-btn--ghost" @click="handleSync">
           <AppIcon name="refresh" :size="16" />

@@ -37,7 +37,6 @@ pub fn create_sale(
     discount: f64,
     total: f64,
     amount_received: f64,
-    invoice_prefix: String,
 ) -> Result<CreateSaleResult, String> {
     const LOC: &str = "invoices::create_sale";
     logging::step(LOC, format!("iniciando venta: {} líneas, total {}", items.len(), total));
@@ -86,6 +85,50 @@ pub fn create_sale(
         logging::step(LOC, "validación de stock OK");
     }
 
+    // Facturación con rango DIAN asignado por la nube por terminal (ver
+    // invoice_numbering.rs y CLAUDE.md — "Numeración de facturas"). Bloquea
+    // la venta si esta terminal no tiene un rango configurado o si ya lo
+    // agotó, en vez de generar un número fuera de lo autorizado.
+    const NOT_CONFIGURED_MSG: &str = "Esta terminal no tiene numeración de facturas configurada. Ve a Configuración → Reglas y Sincronización, ingresa el código de esta terminal y sincroniza.";
+    const CORRUPT_MSG: &str = "Numeración de facturas local corrupta — vuelve a sincronizar.";
+
+    let invoice_prefix: String = tx
+        .query_row(
+            "SELECT value_property FROM app_settings WHERE key_property = 'invoicing.prefix'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|_| NOT_CONFIGURED_MSG.to_string())?;
+
+    let next_number: i64 = tx
+        .query_row(
+            "SELECT value_property FROM app_settings WHERE key_property = 'invoicing.next_number'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|_| NOT_CONFIGURED_MSG.to_string())?
+        .parse()
+        .map_err(|_| CORRUPT_MSG.to_string())?;
+
+    let range_end: i64 = tx
+        .query_row(
+            "SELECT value_property FROM app_settings WHERE key_property = 'invoicing.range_end'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|_| NOT_CONFIGURED_MSG.to_string())?
+        .parse()
+        .map_err(|_| CORRUPT_MSG.to_string())?;
+
+    if next_number > range_end {
+        let msg = format!(
+            "Se agotó el rango de facturación autorizado para esta terminal (hasta {}). Solicita un nuevo rango desde la app móvil y sincroniza de nuevo.",
+            range_end
+        );
+        logging::step(LOC, format!("rango de facturación agotado: {}", msg));
+        return Err(msg);
+    }
+
     // Generated up front so it exists from the very first insert - this is
     // the idempotency key `sales_sync::push_pending_sales` sends as the
     // cloud endpoint's `clientEventId` (see backend/pos's
@@ -100,6 +143,27 @@ pub fn create_sale(
     .map_err(|e| e.to_string())?;
 
     let sale_id = tx.last_insert_rowid();
+
+    // Snapshotted here, once, at creation time — not recomputed later from
+    // whatever `invoicing.prefix` happens to be at that later moment. `next_number`
+    // is this terminal's own counter within its assigned DIAN range (validated
+    // above), not `sale_id` — a fresh install or a range reassignment can easily
+    // have `sale_id` and the authorized range start from different numbers.
+    let invoice_number = format!("{}{:06}", invoice_prefix, next_number);
+    tx.execute(
+        "UPDATE sales SET invoice_prefix = ?1, invoice_number = ?2 WHERE id = ?3",
+        rusqlite::params![invoice_prefix, invoice_number, sale_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Advance the local counter in the same transaction as the sale itself —
+    // if anything below fails and the transaction rolls back, the counter
+    // doesn't advance either, so no number is silently skipped.
+    tx.execute(
+        "UPDATE app_settings SET value_property = ?1, updated_at = datetime('now', 'localtime') WHERE key_property = 'invoicing.next_number'",
+        rusqlite::params![(next_number + 1).to_string()],
+    )
+    .map_err(|e| e.to_string())?;
 
     for item in &items {
         tx.execute(
@@ -133,7 +197,7 @@ pub fn create_sale(
 
     Ok(CreateSaleResult {
         sale_id,
-        invoice_number: format!("{}{:06}", invoice_prefix, sale_id),
+        invoice_number,
         created_at,
         change_due,
     })

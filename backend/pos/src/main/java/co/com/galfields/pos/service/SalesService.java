@@ -14,6 +14,7 @@ import co.com.galfields.pos.entity.PaymentStatus;
 import co.com.galfields.pos.entity.ProductVariant;
 import co.com.galfields.pos.entity.SaleItem;
 import co.com.galfields.pos.entity.SalesTransaction;
+import co.com.galfields.pos.exception.InvalidStateException;
 import co.com.galfields.pos.exception.ResourceNotFoundException;
 import co.com.galfields.pos.repository.EmployeeRepository;
 import co.com.galfields.pos.repository.LocationRepository;
@@ -23,6 +24,7 @@ import co.com.galfields.pos.repository.ProductVariantRepository;
 import co.com.galfields.pos.repository.SaleItemRepository;
 import co.com.galfields.pos.repository.SalesTransactionRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -115,6 +117,45 @@ public class SalesService {
         inventoryService.applyAdjustments(new StockAdjustmentBatchRequest(request.clientEventId(), stockItems));
 
         return new SaleResponse(transaction.getTransactionId(), request.clientEventId(), false);
+    }
+
+    /** Used by mobile's Historial de facturas, which already has the transactionId. */
+    @Transactional
+    public void cancelSale(Long transactionId) {
+        SalesTransaction transaction = salesTransactionRepository.findById(transactionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction " + transactionId + " not found"));
+        cancel(transaction);
+    }
+
+    /** Used by the desktop POS, which has no local record of the cloud's
+     * transactionId — only the sync_uuid it originally reported the sale
+     * under (== this transaction's clientEventId). */
+    @Transactional
+    public void cancelSaleByClientEventId(String clientEventId) {
+        SalesTransaction transaction = salesTransactionRepository.findByClientEventId(clientEventId)
+                .orElseThrow(() -> new ResourceNotFoundException("Sale with clientEventId " + clientEventId + " not found"));
+        cancel(transaction);
+    }
+
+    private void cancel(SalesTransaction transaction) {
+        if (transaction.getCancelledAt() != null) {
+            throw new InvalidStateException("Esta factura ya está cancelada");
+        }
+
+        // Reverses the stock decrement recordSale applied — same mechanism
+        // (InventoryService.applyAdjustments), positive deltas instead of
+        // negative. Must use a DIFFERENT clientEventId than the original
+        // sale: stock_adjustments' idempotency key is (clientEventId,
+        // variantId), so reusing the same one would look "already
+        // processed" and the reversal would silently never apply.
+        var reversalItems = saleItemRepository.findByTransaction_TransactionId(transaction.getTransactionId()).stream()
+                .map(item -> new StockAdjustmentItemRequest(item.getVariant().getVariantId(), item.getQuantity()))
+                .toList();
+        inventoryService.applyAdjustments(
+                new StockAdjustmentBatchRequest("cancel-" + transaction.getClientEventId(), reversalItems));
+
+        transaction.setCancelledAt(LocalDateTime.now());
+        salesTransactionRepository.save(transaction);
     }
 
     private Location defaultLocation() {

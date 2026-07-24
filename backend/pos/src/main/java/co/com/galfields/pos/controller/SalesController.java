@@ -5,9 +5,12 @@ import co.com.galfields.pos.dto.SaleResponse;
 import co.com.galfields.pos.service.SalesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -25,5 +28,20 @@ public class SalesController {
     @PostMapping
     public SaleResponse recordSale(@RequestBody @Valid SaleRequest request) {
         return salesService.recordSale(request);
+    }
+
+    /** Used by mobile's Historial de facturas, which already has the transactionId. */
+    @PostMapping("/{transactionId}/cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancel(@PathVariable Long transactionId) {
+        salesService.cancelSale(transactionId);
+    }
+
+    /** Used by the desktop POS, which only ever knows its own clientEventId
+     * (sync_uuid) — see SalesService#cancelSaleByClientEventId. */
+    @PostMapping("/by-client-event/{clientEventId}/cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void cancelByClientEvent(@PathVariable String clientEventId) {
+        salesService.cancelSaleByClientEventId(clientEventId);
     }
 }

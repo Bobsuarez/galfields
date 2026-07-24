@@ -29,7 +29,8 @@ public interface SalesTransactionRepository extends JpaRepository<SalesTransacti
             SELECT new co.com.galfields.pos.dto.InvoiceSummaryResponse(
                 t.transactionId, t.transactionDate, CONCAT(t.employee.firstName, ' ', t.employee.lastName),
                 t.totalAmount, t.discountAmount,
-                (SELECT COUNT(si) FROM SaleItem si WHERE si.transaction = t))
+                (SELECT COUNT(si) FROM SaleItem si WHERE si.transaction = t),
+                t.cancelledAt)
             FROM SalesTransaction t
             WHERE t.transactionDate BETWEEN :from AND :to
             ORDER BY t.transactionDate DESC

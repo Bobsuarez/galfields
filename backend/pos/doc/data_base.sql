@@ -217,7 +217,9 @@ CREATE TABLE sales_transactions
     payment_status   payment_status_enum DEFAULT 'Pending',
     location_id      BIGSERIAL      NOT NULL REFERENCES locations (location_id),
     -- Idempotency key for POST /api/sales - see V4__sales_recording.sql
-    client_event_id  VARCHAR(100) UNIQUE
+    client_event_id  VARCHAR(100) UNIQUE,
+    -- Separate axis from payment_status - see V6__sales_cancellation.sql
+    cancelled_at     TIMESTAMP
 );
 
 CREATE TABLE sale_items
@@ -297,4 +299,17 @@ CREATE INDEX idx_variant_attributes_lookup ON variant_attributes (attribute_name
 
 -- 4. Índice optimizado para Login de empleados activos
 CREATE INDEX idx_employees_login ON employees (username) WHERE is_active = TRUE;
+
+-- 8. Numeración de facturas (rangos DIAN por terminal) — V5__invoice_numbering_ranges.sql
+CREATE TABLE invoice_numbering_ranges
+(
+    range_id      BIGSERIAL PRIMARY KEY,
+    terminal_code VARCHAR(50) NOT NULL UNIQUE,
+    prefix        VARCHAR(20) NOT NULL,
+    range_start   BIGINT      NOT NULL,
+    range_end     BIGINT      NOT NULL,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CHECK (range_end >= range_start)
+);
 

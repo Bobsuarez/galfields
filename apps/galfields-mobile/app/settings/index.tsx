@@ -32,6 +32,12 @@ const SETTINGS_ITEMS = [
     href: '/settings/payment-methods' as const,
   },
   {
+    icon: 'doc.text.fill',
+    label: 'Numeración de facturas',
+    subtitle: 'Prefijo y rango DIAN autorizado por terminal',
+    href: '/settings/invoicing' as const,
+  },
+  {
     icon: 'server.rack',
     label: 'Servidor',
     subtitle: 'URL del backend al que se conecta la app',

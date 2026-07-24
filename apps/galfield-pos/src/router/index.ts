@@ -20,6 +20,10 @@ const router = createRouter({
       component: () => import('../features/reports/ReportsView.vue'),
     },
     {
+      path: '/facturas',
+      component: () => import('../features/invoices/components/InvoiceHistoryView.vue'),
+    },
+    {
       path: '/sync',
       component: () => import('../features/sync/SyncView.vue'),
     },

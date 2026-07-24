@@ -1,12 +1,13 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
-export type CatalogSyncStep = 'products' | 'categories' | 'payment-methods'
+export type CatalogSyncStep = 'products' | 'categories' | 'payment-methods' | 'invoice-numbering'
 
 export const CATALOG_SYNC_STEP_LABELS: Record<CatalogSyncStep, string> = {
   products: 'Descargando catálogo de productos...',
   categories: 'Sincronizando categorías...',
   'payment-methods': 'Sincronizando métodos de pago...',
+  'invoice-numbering': 'Sincronizando numeración de facturas...',
 }
 
 interface ProductSyncResult {
@@ -20,6 +21,11 @@ interface PaymentMethodSyncResult {
   deactivated: number
 }
 
+interface InvoiceNumberingSyncResult {
+  configured: boolean
+  message: string
+}
+
 export interface CatalogSyncSummary {
   productsFetched: number
   variantsSynced: number
@@ -27,6 +33,7 @@ export interface CatalogSyncSummary {
   categoriesSynced: number
   paymentMethodsSynced: number
   paymentMethodsDeactivated: number
+  invoiceNumberingMessage: string
 }
 
 /**
@@ -59,6 +66,9 @@ export function useCatalogSync() {
       currentStep.value = 'payment-methods'
       const paymentMethods = await invoke<PaymentMethodSyncResult>('sync_payment_methods')
 
+      currentStep.value = 'invoice-numbering'
+      const invoiceNumbering = await invoke<InvoiceNumberingSyncResult>('sync_invoice_numbering')
+
       summary.value = {
         productsFetched: products.productsFetched,
         variantsSynced: products.variantsSynced,
@@ -66,6 +76,7 @@ export function useCatalogSync() {
         categoriesSynced,
         paymentMethodsSynced: paymentMethods.synced,
         paymentMethodsDeactivated: paymentMethods.deactivated,
+        invoiceNumberingMessage: invoiceNumbering.message,
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
