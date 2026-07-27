@@ -68,4 +68,14 @@ public class SalesTransaction {
      * still "was Paid", just cancelled now. Null means active. */
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
+
+    /** DIAN-authorized invoice number snapshotted by the reporting terminal
+     * at sale creation - see apps/galfield-pos's invoices.rs::create_sale.
+     * Null for transactions reported before this column existed (see
+     * V8__sales_invoice_number.sql); callers fall back to transactionId. */
+    @Column(name = "invoice_prefix", length = 20)
+    private String invoicePrefix;
+
+    @Column(name = "invoice_number", length = 30)
+    private String invoiceNumber;
 }

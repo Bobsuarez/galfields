@@ -22,6 +22,11 @@ export interface InvoiceSummary {
   discountAmount: number;
   itemCount: number;
   cancelledAt: string | null;
+  /** DIAN invoice number snapshotted by the reporting terminal at sale
+   * creation (see backend/pos's CLAUDE.md, "invoicePrefix/invoiceNumber").
+   * Null for transactions reported before that existed. */
+  invoicePrefix: string | null;
+  invoiceNumber: string | null;
 }
 
 export interface InvoiceLine {
@@ -48,6 +53,9 @@ export interface InvoiceDetail {
   items: InvoiceLine[];
   payments: InvoicePayment[];
   cancelledAt: string | null;
+  /** See InvoiceSummary.invoiceNumber. */
+  invoicePrefix: string | null;
+  invoiceNumber: string | null;
 }
 
 export interface InventoryRow {
@@ -133,6 +141,13 @@ export async function fetchInvoices(range?: DateRange, page = 0, size = 20): Pro
 
 export function fetchInvoiceDetail(transactionId: number): Promise<InvoiceDetail> {
   return getJson(`/api/reports/invoices/${transactionId}`);
+}
+
+/** `invoiceNumber` already includes the prefix (e.g. "FAC-000501" — see
+ * apps/galfield-pos's invoices.rs::create_sale). Falls back to the raw
+ * transactionId for invoices reported before the cloud tracked this. */
+export function formatInvoiceNumber(invoice: { transactionId: number; invoiceNumber: string | null }): string {
+  return invoice.invoiceNumber ?? `#${invoice.transactionId}`;
 }
 
 /** The only non-GET call in this file — `getJson` is GET-only by

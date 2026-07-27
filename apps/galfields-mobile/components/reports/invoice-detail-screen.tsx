@@ -4,7 +4,7 @@ import { ReportHeader } from './report-header';
 import { Brand } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { formatCurrency } from '@/utils/currency';
-import { cancelInvoice, fetchInvoiceDetail, InvoiceDetail } from '@/services/reports-api';
+import { cancelInvoice, fetchInvoiceDetail, formatInvoiceNumber, InvoiceDetail } from '@/services/reports-api';
 
 interface InvoiceDetailScreenProps {
   transactionId: number;
@@ -38,10 +38,14 @@ export function InvoiceDetailScreen({ transactionId }: InvoiceDetailScreenProps)
 
   useEffect(() => load(), [load]);
 
+  // Falls back to the raw id while loading / if this invoice predates
+  // cloud-side invoice number tracking — see formatInvoiceNumber.
+  const invoiceLabel = invoice ? formatInvoiceNumber(invoice) : `#${transactionId}`;
+
   const handleCancel = () => {
     Alert.alert(
       'Cancelar factura',
-      `¿Cancelar la factura #${transactionId}? Esto repone el stock descontado y no se puede deshacer.`,
+      `¿Cancelar la factura ${invoiceLabel}? Esto repone el stock descontado y no se puede deshacer.`,
       [
         { text: 'Volver', style: 'cancel' },
         {
@@ -66,7 +70,7 @@ export function InvoiceDetailScreen({ transactionId }: InvoiceDetailScreenProps)
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ReportHeader title={`Factura #${transactionId}`} />
+      <ReportHeader title={`Factura ${invoiceLabel}`} />
 
       {error ? (
         <Text style={styles.error}>{error}</Text>

@@ -115,7 +115,13 @@ pub async fn sync_invoice_numbering(
         .ok()
         .and_then(|(p, s, e)| Some((p?, s?.parse().ok()?, e?.parse().ok()?)));
 
-    let range_changed = previous != Some((range.prefix.clone(), range.range_start, range.range_end));
+    // Only `prefix`/`range_start` identify a genuinely new assignment.
+    // `range_end` deliberately excluded: extending an existing range's end
+    // (e.g. from Configuración → Numeración de facturas, to give a terminal
+    // more room before it runs out) must NOT be treated as "changed", or
+    // `next_number` would rewind to `range_start` and reissue invoice
+    // numbers that were already printed under the old, narrower range.
+    let range_changed = previous.map(|(p, s, _)| (p, s)) != Some((range.prefix.clone(), range.range_start));
 
     let upsert = |key: &str, value: String| -> Result<(), String> {
         db.conn

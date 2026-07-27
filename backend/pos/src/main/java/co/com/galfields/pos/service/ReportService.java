@@ -90,7 +90,9 @@ public class ReportService {
                 transaction.getTaxAmount(),
                 items,
                 payments,
-                transaction.getCancelledAt());
+                transaction.getCancelledAt(),
+                transaction.getInvoicePrefix(),
+                transaction.getInvoiceNumber());
     }
 
     /** Covers "Inventario actual". */

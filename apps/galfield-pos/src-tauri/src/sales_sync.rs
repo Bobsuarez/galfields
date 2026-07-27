@@ -35,6 +35,13 @@ struct SaleRequestPayload {
     payments: Vec<SalePaymentPayload>,
     discount_amount: f64,
     total_amount: f64,
+    // Snapshotted at create_sale time (see invoices.rs) — this is what lets
+    // the cloud's "Historial de facturas" (apps/galfields-mobile) show the
+    // real DIAN invoice number instead of its own transaction_id. `None`
+    // only for pre-existing sales that predate migration 008 and somehow
+    // never got backfilled — backend/pos's SaleRequest accepts null here.
+    invoice_prefix: Option<String>,
+    invoice_number: Option<String>,
 }
 
 /// Mirrors `sales-sync-status` payload shape sent to the frontend after
@@ -65,6 +72,8 @@ struct PendingSale {
     /// `None` when the sale's payment method predates
     /// `catalog_sync.rs`'s remote-linking migration (006).
     remote_payment_method_id: Option<i64>,
+    invoice_prefix: Option<String>,
+    invoice_number: Option<String>,
     items: Vec<PendingSaleItem>,
 }
 
@@ -90,7 +99,8 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
     let mut sales_stmt = db
         .conn
         .prepare(
-            "SELECT s.id, s.sync_uuid, s.discount, s.total, pm.remote_payment_method_id
+            "SELECT s.id, s.sync_uuid, s.discount, s.total, pm.remote_payment_method_id,
+                    s.invoice_prefix, s.invoice_number
              FROM sales s
              JOIN payment_method pm ON pm.id = s.payment_method
              WHERE s.synced_at IS NULL AND s.cancelled_at IS NULL
@@ -98,9 +108,17 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
         )
         .map_err(|e| e.to_string())?;
 
-    let sale_rows: Vec<(i64, String, f64, f64, Option<i64>)> = sales_stmt
+    let sale_rows: Vec<(i64, String, f64, f64, Option<i64>, Option<String>, Option<String>)> = sales_stmt
         .query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+            ))
         })
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
@@ -117,7 +135,7 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
         .map_err(|e| e.to_string())?;
 
     let mut pending = Vec::new();
-    for (sale_id, sync_uuid, discount, total, remote_payment_method_id) in sale_rows {
+    for (sale_id, sync_uuid, discount, total, remote_payment_method_id, invoice_prefix, invoice_number) in sale_rows {
         let items: Vec<PendingSaleItem> = items_stmt
             .query_map(rusqlite::params![sale_id], |row| {
                 Ok(PendingSaleItem {
@@ -136,6 +154,8 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
             discount,
             total,
             remote_payment_method_id,
+            invoice_prefix,
+            invoice_number,
             items,
         });
     }
@@ -220,6 +240,8 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
             }],
             discount_amount: sale.discount,
             total_amount: sale.total,
+            invoice_prefix: sale.invoice_prefix.clone(),
+            invoice_number: sale.invoice_number.clone(),
         };
 
         let response = http_client::post_json(&format!("{}/api/sales", api_base_url), &payload).await;

@@ -21,5 +21,11 @@ public record SaleRequest(
         @NotEmpty @Valid List<SaleLineRequest> items,
         @NotEmpty @Valid List<SalePaymentRequest> payments,
         @NotNull BigDecimal discountAmount,
-        @NotNull BigDecimal totalAmount) {
+        @NotNull BigDecimal totalAmount,
+        // Snapshotted DIAN invoice number - see apps/galfield-pos's
+        // invoices.rs::create_sale. Not @NotBlank: a terminal that hasn't
+        // updated yet (or has no numbering range configured) still has to
+        // be able to report a sale; those land with null invoice fields.
+        String invoicePrefix,
+        String invoiceNumber) {
 }
