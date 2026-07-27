@@ -3,7 +3,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Brand } from '@/constants/theme';
 import { useThemeColors } from '@/hooks/use-theme-colors';
 import { formatCurrency } from '@/utils/currency';
-import type { InvoiceSummary } from '@/services/reports-api';
+import { formatInvoiceNumber, type InvoiceSummary } from '@/services/reports-api';
 
 interface InvoiceListItemProps {
   invoice: InvoiceSummary;
@@ -25,7 +25,7 @@ export function InvoiceListItem({ invoice, onPress }: InvoiceListItemProps) {
     >
       <View style={styles.info}>
         <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: colors.text }]}>Factura #{invoice.transactionId}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Factura {formatInvoiceNumber(invoice)}</Text>
           {invoice.cancelledAt ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>Cancelada</Text>

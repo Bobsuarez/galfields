@@ -26,6 +26,15 @@ const invoicingSyncMessage = ref('')
 async function syncInvoicing() {
   isSyncingInvoicing.value = true
   try {
+    // `settings` is an isolated in-memory draft (see useConfig.ts) — the
+    // terminal code the user just typed only reaches app_settings once the
+    // top-level "Guardar Cambios" button is pressed. `sync_invoice_numbering`
+    // reads straight from app_settings, so without persisting it here first,
+    // clicking this button right after typing a code silently syncs against
+    // the OLD (often empty) value and reports "sin código de terminal
+    // configurado". Save just this one key — not the whole draft — so
+    // unsaved edits elsewhere in Configuración aren't persisted as a side effect.
+    await invoke('save_settings', { settings: { 'invoicing.terminal_code': props.settings.invoicing.terminalCode } })
     const result = await invoke<{ configured: boolean; message: string }>('sync_invoice_numbering')
     invoicingSyncMessage.value = result.message
     // The command writes straight to app_settings — pull it back into this

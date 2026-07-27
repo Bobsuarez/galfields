@@ -219,7 +219,12 @@ CREATE TABLE sales_transactions
     -- Idempotency key for POST /api/sales - see V4__sales_recording.sql
     client_event_id  VARCHAR(100) UNIQUE,
     -- Separate axis from payment_status - see V6__sales_cancellation.sql
-    cancelled_at     TIMESTAMP
+    cancelled_at     TIMESTAMP,
+    -- DIAN-authorized invoice number snapshotted by the reporting terminal
+    -- at sale creation - see V8__sales_invoice_number.sql. Nullable: null
+    -- for transactions reported before this column existed.
+    invoice_prefix   VARCHAR(20),
+    invoice_number   VARCHAR(30)
 );
 
 CREATE TABLE sale_items

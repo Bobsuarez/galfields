@@ -13,5 +13,9 @@ public record InvoiceDetailResponse(
         BigDecimal taxAmount,
         List<InvoiceLineResponse> items,
         List<InvoicePaymentResponse> payments,
-        LocalDateTime cancelledAt) {
+        LocalDateTime cancelledAt,
+        // Null for transactions reported before V8__sales_invoice_number.sql
+        // existed - callers fall back to transactionId for those.
+        String invoicePrefix,
+        String invoiceNumber) {
 }

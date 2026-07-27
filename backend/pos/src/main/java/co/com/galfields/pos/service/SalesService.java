@@ -81,6 +81,8 @@ public class SalesService {
         transaction.setDiscountAmount(request.discountAmount());
         transaction.setTaxAmount(BigDecimal.ZERO);
         transaction.setPaymentStatus(PaymentStatus.Paid);
+        transaction.setInvoicePrefix(request.invoicePrefix());
+        transaction.setInvoiceNumber(request.invoiceNumber());
         salesTransactionRepository.save(transaction);
 
         for (SaleLineRequest line : request.items()) {
