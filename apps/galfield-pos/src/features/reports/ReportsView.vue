@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useReports } from './composables/useReports'
 import KpiCard from './components/KpiCard.vue'
-import ReportsPasswordModal from './components/ReportsPasswordModal.vue'
+import ReportsAccessCodeModal from './components/ReportsAccessCodeModal.vue'
 import TopProductsTable from './components/TopProductsTable.vue'
 import PaymentMethodBreakdown from './components/PaymentMethodBreakdown.vue'
 import LowStockTable from './components/LowStockTable.vue'
@@ -17,10 +17,10 @@ const {
   dateTo,
   kpis,
   isLoadingKpis,
-  showPasswordGate,
+  showAccessGate,
   applyDateRange,
-  confirmPasswordGate,
-  cancelPasswordGate,
+  confirmAccessCode,
+  cancelAccessGate,
   lineLabels,
   lineSeries,
   categorySales,
@@ -150,10 +150,10 @@ function onDateToSelect(value: string): void {
       </div>
     </div>
 
-    <ReportsPasswordModal
-      :visible="showPasswordGate"
-      @confirm="confirmPasswordGate"
-      @cancel="cancelPasswordGate"
+    <ReportsAccessCodeModal
+      :visible="showAccessGate"
+      @confirm="confirmAccessCode"
+      @cancel="cancelAccessGate"
     />
   </main>
 </template>

@@ -10,6 +10,7 @@ mod peripheral_manager;
 mod peripherals;
 mod products;
 mod reports;
+mod reports_access;
 mod sale_history;
 mod sales_sync;
 mod settings;
@@ -85,6 +86,7 @@ pub fn run() {
             reports::get_sales_by_payment_method,
             reports::get_products_without_movement,
             reports::get_low_stock_report,
+            reports_access::validate_reports_access_code,
             products::get_low_stock_products,
             products::get_products,
             peripheral_manager::start_peripheral_listener,

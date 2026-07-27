@@ -168,6 +168,16 @@ Two entry points into the same `SalesService#cancel` logic, because the two call
 - Both endpoints return `204 No Content` on success — nothing to hand back beyond confirmation.
 - No cancellation reason/note field, and no time limit on when a sale can be cancelled — kept deliberately minimal until a real need for either surfaces.
 
+## Reports access code (`/api/reports-access-code`)
+
+`ReportsAccessCodeController` → `ReportsAccessCodeService` → `ReportsAccessCodeRepository`, backed by `reports_access_codes` (migration `V7__reports_access_code.sql`). This is the gate that keeps cashiers from freely browsing financial reports on the desktop POS: the mobile app's Configuración → Acceso a Reportes generates a 6-digit code on demand, and the desktop POS (`apps/galfield-pos`'s `reports_access.rs`) validates whatever the cashier types against it before letting them into the Reportes module — every time they enter it, not just once per session.
+
+- **`POST /api/reports-access-code`** (no body) — generates a fresh random 6-digit code (`SecureRandom`, zero-padded) and **inserts a new row** rather than updating one; called from mobile when the manager taps "Generar código".
+- **`POST /api/reports-access-code/validate`** (`{ code }`) — returns `{ valid }`, comparing against the row with the latest `generated_at` (`findFirstByOrderByGeneratedAtDesc`).
+- **Append-only, no expiry column on purpose**: the code is meant to stay valid until a new one is generated, not rotate on a timer — generating a new code implicitly invalidates the previous one simply by becoming the new "most recent" row. Older rows are never deleted (a harmless growing audit log), but only the latest one is ever checked.
+- **Global, not per-terminal**: unlike invoice numbering ranges above, there's exactly one active code for the whole business — no `terminal_code` column, and no way to have two valid codes at once.
+- **No auth on either endpoint** — matches the rest of this backend today (no employee login/auth exists anywhere in this codebase yet, see the sale-recording section's "Employee attribution is a placeholder" note). Revisit if real auth is ever added.
+
 ## Report endpoints (`GET /api/reports/*`)
 
 `ReportController` → `ReportService`, backing the mobile app's report screens (see `apps/galfields-mobile`'s CLAUDE.md). All date-ranged reports take `from`/`to` as plain `YYYY-MM-DD` dates (inclusive); omitting both defaults to today, omitting just `from` scopes to the single `to` day.
