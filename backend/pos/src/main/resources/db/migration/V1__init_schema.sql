@@ -1,2 +1,454 @@
--- Sentencia válida requerida por Flyway para validar el archivo.
-SELECT 1;
+-- ============================================================
+-- Full schema + default seed data for a fresh database. Ported from
+-- infra-repo-kinforgeworks's apps/galfields/postgrest/init-schema-configmap.yaml
+-- (the hand-maintained stand-in that used to bootstrap Postgres directly,
+-- before Flyway was wired up correctly — see CLAUDE.md's "Database schema"
+-- section for the full story). V2-V6 apply on top of this in order, same
+-- as they always have — nothing from those files is duplicated here.
+--
+-- IMPORTANT for the already-deployed production database: this migration
+-- never actually runs there. spring.flyway.baseline-on-migrate=true +
+-- baseline-version=1 (application.properties) mark V1 as already satisfied
+-- on any non-empty schema with no flyway_schema_history yet — baseline()
+-- never executes a migration's SQL, it only records that version as done.
+-- Editing this file's content is 100% safe for that database; it only
+-- matters for a genuinely fresh/empty one (local dev, disaster recovery,
+-- a new environment).
+--
+-- One real bug fixed while porting: the ConfigMap created
+-- payment_methods_images before attach_files, which it references — that
+-- ordering only ever "worked" because it never actually ran against a
+-- fresh database in practice. Table order below is dependency-safe.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION set_last_updated() RETURNS TRIGGER AS $$
+BEGIN
+    NEW.last_updated = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TYPE payment_status_enum AS ENUM ('Pending', 'Paid', 'Partial', 'Cancelled');
+CREATE TYPE purchase_order_status_enum AS ENUM ('Pending', 'Received', 'Cancelled', 'Partial');
+
+-- 1. Reference / configuration tables
+CREATE TABLE categories
+(
+    category_id BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE brands
+(
+    brand_id   BIGSERIAL PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE employee_roles
+(
+    role_id     BIGSERIAL PRIMARY KEY,
+    role_name   VARCHAR(50) NOT NULL,
+    permissions JSONB,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE payment_methods
+(
+    payment_method_id BIGSERIAL PRIMARY KEY,
+    method_name       VARCHAR(50) NOT NULL,
+    is_active         BOOLEAN   DEFAULT TRUE,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE attach_files
+(
+    attach_files_id BIGSERIAL PRIMARY KEY,
+    name            varchar(255) NOT NULL,
+    url             text         NOT NULL,
+    mime_type       varchar(100) NOT NULL,
+    size            INT          NOT NULL,
+    create_at       timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+-- payment_methods_images is NOT created here — V3__payment_methods_images.sql
+-- already owns it, and runs after V1 so attach_files (above) is available by
+-- then.
+
+CREATE TABLE locations
+(
+    location_id BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(100) NOT NULL,
+    address     TEXT,
+    phone       VARCHAR(20),
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. People (employees, customers, suppliers)
+CREATE TABLE employees
+(
+    employee_id   BIGSERIAL PRIMARY KEY,
+    first_name    VARCHAR(50)        NOT NULL,
+    last_name     VARCHAR(50)        NOT NULL,
+    username      VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255)       NOT NULL,
+    role_id       BIGINT REFERENCES employee_roles (role_id),
+    logo_image    BIGINT REFERENCES attach_files (attach_files_id),
+    is_active     BOOLEAN   DEFAULT TRUE,
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE customers
+(
+    customer_id    BIGSERIAL PRIMARY KEY,
+    first_name     VARCHAR(50) NOT NULL,
+    last_name      VARCHAR(50) NOT NULL,
+    email          VARCHAR(100) UNIQUE,
+    phone_number   VARCHAR(20),
+    address        TEXT,
+    loyalty_points INT       DEFAULT 0,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE suppliers
+(
+    supplier_id    BIGSERIAL PRIMARY KEY,
+    name           VARCHAR(100) NOT NULL,
+    contact_person VARCHAR(100),
+    phone_number   VARCHAR(20),
+    email          VARCHAR(100),
+    address        TEXT,
+    created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Products and variants
+CREATE TABLE products
+(
+    product_id  BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(150) NOT NULL,
+    description TEXT,
+    category_id BIGINT REFERENCES categories (category_id),
+    brand_id    BIGINT REFERENCES brands (brand_id),
+    is_active   BOOLEAN   DEFAULT TRUE,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TRIGGER trg_products_updated_at
+    BEFORE UPDATE
+    ON products
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE product_images
+(
+    id            BIGSERIAL PRIMARY KEY,
+    product_id    BIGINT UNIQUE NOT NULL REFERENCES products (product_id),
+    image_product BIGINT        NOT NULL REFERENCES attach_files (attach_files_id),
+    create_at     timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE product_variants
+(
+    variant_id BIGSERIAL PRIMARY KEY,
+    product_id BIGINT             NOT NULL REFERENCES products (product_id),
+    sku        VARCHAR(50) UNIQUE NOT NULL,
+    price      DECIMAL(15, 2)     NOT NULL,
+    cost_price DECIMAL(15, 2)     NOT NULL,
+    barcode    VARCHAR(100) UNIQUE,
+    is_active  BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE variant_attributes
+(
+    variant_attribute_id BIGSERIAL PRIMARY KEY,
+    variant_id           BIGINT      NOT NULL REFERENCES product_variants (variant_id) ON DELETE CASCADE,
+    attribute_name        VARCHAR(50) NOT NULL,
+    attribute_value       VARCHAR(50) NOT NULL,
+    UNIQUE (variant_id, attribute_name) -- a variant can't have the same attribute twice
+);
+
+CREATE TABLE product_variants_images
+(
+    id               BIGSERIAL PRIMARY KEY,
+    product_variants BIGINT UNIQUE NOT NULL REFERENCES product_variants (variant_id),
+    image_product    BIGINT        NOT NULL REFERENCES attach_files (attach_files_id),
+    create_at        timestamp DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. Inventory per location
+CREATE TABLE inventory
+(
+    inventory_id     BIGSERIAL PRIMARY KEY,
+    variant_id       BIGINT NOT NULL REFERENCES product_variants (variant_id),
+    location_id      BIGINT NOT NULL REFERENCES locations (location_id),
+    quantity_on_hand INT       DEFAULT 0,
+    last_updated     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (variant_id, location_id)
+);
+CREATE TRIGGER trg_inventory_last_updated
+    BEFORE UPDATE
+    ON inventory
+    FOR EACH ROW EXECUTE FUNCTION set_last_updated();
+
+-- 5. Sales transactions
+CREATE TABLE sales_transactions
+(
+    transaction_id   BIGSERIAL PRIMARY KEY,
+    transaction_date TIMESTAMP           DEFAULT CURRENT_TIMESTAMP,
+    employee_id      BIGINT         NOT NULL REFERENCES employees (employee_id),
+    customer_id      BIGINT REFERENCES customers (customer_id),
+    total_amount     DECIMAL(15, 2) NOT NULL,
+    discount_amount  DECIMAL(15, 2)      DEFAULT 0,
+    tax_amount       DECIMAL(15, 2)      DEFAULT 0,
+    payment_status   payment_status_enum DEFAULT 'Pending',
+    location_id      BIGINT         NOT NULL REFERENCES locations (location_id)
+);
+
+CREATE TABLE sale_items
+(
+    sale_item_id      BIGSERIAL PRIMARY KEY,
+    transaction_id    BIGINT         NOT NULL REFERENCES sales_transactions (transaction_id),
+    variant_id        BIGINT         NOT NULL REFERENCES product_variants (variant_id),
+    quantity          INT            NOT NULL,
+    unit_price        DECIMAL(15, 2) NOT NULL,
+    discount_per_item DECIMAL(15, 2) DEFAULT 0,
+    subtotal          DECIMAL(15, 2) NOT NULL
+);
+
+CREATE TABLE payments
+(
+    payment_id        BIGSERIAL PRIMARY KEY,
+    transaction_id    BIGINT         NOT NULL REFERENCES sales_transactions (transaction_id),
+    payment_method_id BIGINT         NOT NULL REFERENCES payment_methods (payment_method_id),
+    amount            DECIMAL(15, 2) NOT NULL,
+    payment_date      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    reference_number  VARCHAR(100)
+);
+
+-- 6. Purchase orders (supply)
+CREATE TABLE purchase_orders
+(
+    purchase_order_id      BIGSERIAL PRIMARY KEY,
+    supplier_id            BIGINT                     NOT NULL REFERENCES suppliers (supplier_id),
+    order_date             TIMESTAMP                  DEFAULT CURRENT_TIMESTAMP,
+    expected_delivery_date TIMESTAMP,
+    status                 purchase_order_status_enum DEFAULT 'Pending',
+    total_amount           DECIMAL(15, 2)             NOT NULL
+);
+
+CREATE TABLE purchase_order_items
+(
+    po_item_id        BIGSERIAL PRIMARY KEY,
+    purchase_order_id BIGINT         NOT NULL REFERENCES purchase_orders (purchase_order_id),
+    variant_id        BIGINT         NOT NULL REFERENCES product_variants (variant_id),
+    quantity          INT            NOT NULL,
+    cost_price        DECIMAL(15, 2) NOT NULL,
+    received_quantity INT DEFAULT 0
+);
+
+-- 7. Indexes
+CREATE INDEX idx_employees_role_id ON employees (role_id);
+CREATE INDEX idx_products_category_id ON products (category_id);
+CREATE INDEX idx_products_brand_id ON products (brand_id);
+CREATE INDEX idx_product_variants_product_id ON product_variants (product_id);
+
+CREATE INDEX idx_sales_transactions_employee_id ON sales_transactions (employee_id);
+CREATE INDEX idx_sales_transactions_customer_id ON sales_transactions (customer_id);
+CREATE INDEX idx_sales_transactions_location_id ON sales_transactions (location_id);
+
+CREATE INDEX idx_sale_items_transaction_id ON sale_items (transaction_id);
+CREATE INDEX idx_sale_items_variant_id ON sale_items (variant_id);
+CREATE INDEX idx_payments_transaction_id ON payments (transaction_id);
+CREATE INDEX idx_payments_method_id ON payments (payment_method_id);
+
+CREATE INDEX idx_purchase_orders_supplier_id ON purchase_orders (supplier_id);
+CREATE INDEX idx_purchase_order_items_po_id ON purchase_order_items (purchase_order_id);
+CREATE INDEX idx_purchase_order_items_variant_id ON purchase_order_items (variant_id);
+
+CREATE INDEX idx_inventory_location_variant ON inventory (location_id, variant_id);
+CREATE INDEX idx_sales_location_date ON sales_transactions (location_id, transaction_date);
+CREATE INDEX idx_variant_attributes_lookup ON variant_attributes (attribute_name, attribute_value);
+CREATE INDEX idx_employees_login ON employees (username) WHERE is_active = TRUE;
+
+-- 8. Default seed data — a Colombian corner-store POS demo (categories,
+-- brands, payment methods, locations). TRUNCATE up front makes this
+-- idempotent even re-run against a DB with prior test data (cascades into
+-- products/product_variants/product_images/inventory, which depend on
+-- categories/brands/locations).
+TRUNCATE categories, brands, locations RESTART IDENTITY CASCADE;
+
+INSERT INTO categories (name, description) VALUES
+    ('Licores', 'Aguardiente, ron, whisky y licores en general'),
+    ('Aguardiente y Ron', 'Aguardiente y ron por botella o media'),
+    ('Cervezas', 'Cerveza nacional en botella, lata y barril'),
+    ('Cigarrillos y Tabaco', 'Cajetillas de cigarrillo y tabaco'),
+    ('Cigarrillos Sueltos', 'Cigarrillo suelto, venta por unidad'),
+    ('Dulces y Confites', 'Dulces, caramelos y confites surtidos'),
+    ('Chocolates', 'Chocolatinas y golosinas de chocolate'),
+    ('Chicles y Mentas', 'Chicles, mentas y aliento fresco'),
+    ('Galletas', 'Galletas dulces y saladas'),
+    ('Paquetes y Papas', 'Papas fritas y paquetes empacados'),
+    ('Mecato Salado', 'Pasabocas salados variados'),
+    ('Gaseosas', 'Bebidas gaseosas en botella y lata'),
+    ('Jugos y Refrescos', 'Jugos, refrescos y bebidas de fruta'),
+    ('Agua Embotellada', 'Agua con y sin gas'),
+    ('Bebidas Energizantes', 'Bebidas energizantes e hidratantes'),
+    ('Tintos y Café', 'Café molido, instantáneo y tinto para la venta'),
+    ('Aromáticas y Té', 'Aromáticas, té e infusiones'),
+    ('Huevos', 'Huevo rojo y blanco por unidad o cubeta'),
+    ('Pan y Panadería', 'Pan del día y productos de panadería'),
+    ('Embutidos', 'Chorizo, salchicha y embutidos fríos'),
+    ('Lácteos', 'Leche, kumis, avena y derivados lácteos'),
+    ('Arroz y Granos', 'Arroz, fríjol, lenteja y granos secos'),
+    ('Aceite y Grasas', 'Aceite de cocina y grasas'),
+    ('Panela y Azúcar', 'Panela, azúcar y endulzantes'),
+    ('Sal y Condimentos', 'Sal, caldos y condimentos'),
+    ('Enlatados y Conservas', 'Atún, sardinas y enlatados'),
+    ('Aseo Personal', 'Jabón, shampoo y cuidado personal'),
+    ('Aseo Hogar', 'Detergente, limpiadores y desinfectantes'),
+    ('Recargas y Minutos', 'Recargas de celular y minutos a todo operador'),
+    ('Fósforos y Encendedores', 'Fósforos, encendedores y velas');
+
+INSERT INTO brands (name) VALUES
+    ('Aguardiente Antioqueño'),
+    ('Aguardiente Néctar'),
+    ('Ron Medellín'),
+    ('Ron Viejo de Caldas'),
+    ('Águila'),
+    ('Poker'),
+    ('Club Colombia'),
+    ('Costeña'),
+    ('Corona'),
+    ('Marlboro'),
+    ('Boston'),
+    ('Mustang'),
+    ('L&M'),
+    ('Colombina'),
+    ('Bon Bon Bum'),
+    ('Trululu'),
+    ('Super Ricas'),
+    ('Jet'),
+    ('Chocorramo'),
+    ('Margarita'),
+    ('Yupi'),
+    ('Detodito'),
+    ('Platanitos'),
+    ('Coca-Cola'),
+    ('Postobón'),
+    ('Pepsi'),
+    ('Colombiana'),
+    ('Colcafé'),
+    ('Sello Rojo'),
+    ('Bimbo'),
+    ('Old Parr'),
+    ('Buchanan''s'),
+    ('Chivas Regal'),
+    ('Ron Cacique'),
+    ('Ron Santa Fe'),
+    ('Néctar Doble Anís'),
+    ('Redd''s'),
+    ('Cola y Pola'),
+    ('Budweiser'),
+    ('Heineken'),
+    ('Pilsen'),
+    ('Kool'),
+    ('Belmont'),
+    ('Lucky Strike'),
+    ('Pielroja'),
+    ('Caribe'),
+    ('Trident'),
+    ('Halls'),
+    ('Frunas'),
+    ('Chiclets Adams'),
+    ('Menthoplus'),
+    ('Chocolisto'),
+    ('Festival'),
+    ('Bocatto'),
+    ('Doritos'),
+    ('Cheetos'),
+    ('Chizitos'),
+    ('Jack''s'),
+    ('Chester'),
+    ('Crunchos'),
+    ('Marroquín'),
+    ('Juan Valdez'),
+    ('Nescafé'),
+    ('La Bastilla'),
+    ('Popular'),
+    ('Cola Román'),
+    ('Sprite'),
+    ('Fanta'),
+    ('Hit'),
+    ('Del Valle'),
+    ('Tutti Frutti'),
+    ('Alpina'),
+    ('Colanta'),
+    ('Alquería'),
+    ('Parmalat'),
+    ('Ramo'),
+    ('Pan Pa''Ya'),
+    ('Comapan'),
+    ('Diana'),
+    ('Roa'),
+    ('Florhuila'),
+    ('Doña Pepa'),
+    ('Manuelita'),
+    ('Incauca'),
+    ('Gourmet'),
+    ('Premier'),
+    ('Oleocali'),
+    ('Van Camps'),
+    ('La Comadre'),
+    ('Rica'),
+    ('Ranchera'),
+    ('Suizo'),
+    ('Fabuloso'),
+    ('Ariel'),
+    ('Fab'),
+    ('Clorox'),
+    ('Límpido'),
+    ('Colgate');
+
+INSERT INTO payment_methods (method_name, is_active) VALUES
+    ('Efectivo', TRUE),
+    ('Tarjeta Débito', TRUE),
+    ('Tarjeta Crédito', TRUE),
+    ('Nequi', TRUE),
+    ('Daviplata', TRUE),
+    ('Bancolombia QR', TRUE),
+    ('PSE', TRUE),
+    ('Transferencia Bancaria', TRUE),
+    ('Crédito Cliente', TRUE),
+    ('Bono Regalo', TRUE),
+    ('Puntos Colombia', TRUE),
+    ('Addi', TRUE),
+    ('Sistecredito', TRUE),
+    ('Consignación', TRUE),
+    ('Cheque', FALSE),
+    ('PayPal', FALSE);
+
+INSERT INTO locations (name, address, phone) VALUES
+    ('Bogotá - Chapinero', 'Cra 13 # 45-67, Chapinero, Bogotá', '+57 601 555 0101'),
+    ('Bogotá - Suba', 'Av. Suba # 120-30, Suba, Bogotá', '+57 601 555 0102'),
+    ('Bogotá - Kennedy', 'Cl 38 Sur # 78-12, Kennedy, Bogotá', '+57 601 555 0103'),
+    ('Medellín - Poblado', 'Cra 43A # 10-25, El Poblado, Medellín', '+57 604 555 0201'),
+    ('Medellín - Laureles', 'Cl 33 # 76-40, Laureles, Medellín', '+57 604 555 0202'),
+    ('Cali - Norte', 'Av 6N # 28-50, Norte, Cali', '+57 602 555 0301'),
+    ('Cali - Sur', 'Cra 100 # 16-80, Sur, Cali', '+57 602 555 0302'),
+    ('Barranquilla - Centro', 'Cl 72 # 45-10, Centro, Barranquilla', '+57 605 555 0401'),
+    ('Cartagena - Bocagrande', 'Av San Martín # 6-70, Bocagrande, Cartagena', '+57 605 555 0501'),
+    ('Bucaramanga - Cabecera', 'Cra 33 # 45-20, Cabecera, Bucaramanga', '+57 607 555 0601'),
+    ('Pereira - Centro', 'Cl 19 # 8-30, Centro, Pereira', '+57 606 555 0701'),
+    ('Manizales - Centro', 'Cra 23 # 26-15, Centro, Manizales', '+57 606 555 0801'),
+    ('Ibagué - Centro', 'Cl 15 # 3-40, Centro, Ibagué', '+57 608 555 0901'),
+    ('Santa Marta - Centro', 'Cra 5 # 20-10, Centro, Santa Marta', '+57 605 555 1001'),
+    ('Cúcuta - Centro', 'Av 4 # 10-25, Centro, Cúcuta', '+57 607 555 1101'),
+    ('Villavicencio - Centro', 'Cl 38 # 30-15, Centro, Villavicencio', '+57 608 555 1201');
