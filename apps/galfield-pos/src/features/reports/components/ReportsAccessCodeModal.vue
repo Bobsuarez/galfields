@@ -1,48 +1,61 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 
 const props = defineProps<{ visible: boolean }>()
 const emit  = defineEmits<{
-  (e: 'confirm', password: string): void
+  (e: 'confirm', code: string): void
   (e: 'cancel'): void
 }>()
 
-const password = ref('')
+const code = ref('')
+const inputRef = ref<HTMLInputElement | null>(null)
 
-// Reset form when modal opens
+// Reset form every time the gate reappears (a fresh entry into Reportes).
 watch(() => props.visible, (v) => {
-  if (v) { password.value = '' }
+  if (v) {
+    code.value = ''
+    nextTick(() => inputRef.value?.focus())
+  }
 })
 
+function onInput(e: Event) {
+  const target = e.target as HTMLInputElement
+  code.value = target.value.replace(/\D/g, '').slice(0, 6)
+}
+
 function handleConfirm() {
-  if (!password.value.trim()) return
-  emit('confirm', password.value.trim())
+  if (code.value.length !== 6) return
+  emit('confirm', code.value)
 }
 </script>
 
 <template>
   <Transition name="modal">
-    <div v-if="visible" class="modal-backdrop" @click.self="emit('cancel')">
+    <div v-if="visible" class="modal-backdrop">
       <div class="modal-card">
         <div class="modal-header">
           <span class="modal-icon">🔒</span>
-          <h2 class="modal-title">Verificación Requerida</h2>
+          <h2 class="modal-title">Código de Acceso</h2>
         </div>
 
         <div class="modal-body">
           <p class="modal-explanation">
-            Los rangos mayores a un mes requieren verificación adicional — el histórico
-            completo vivirá en un servidor remoto más adelante.
+            Ingresa el código de 6 dígitos generado desde la app móvil
+            (Configuración → Acceso a Reportes) para entrar a este módulo.
           </p>
 
           <div class="field">
-            <label class="field-label">Contraseña</label>
+            <label class="field-label">Código</label>
             <input
-              v-model="password"
-              type="password"
+              ref="inputRef"
+              :value="code"
+              type="text"
+              inputmode="numeric"
+              maxlength="6"
               class="field-input"
-              placeholder="••••"
+              placeholder="000000"
               autofocus
+              @input="onInput"
               @keydown.enter="handleConfirm"
               @keydown.esc="emit('cancel')"
             />
@@ -51,7 +64,7 @@ function handleConfirm() {
 
         <div class="modal-footer">
           <button class="btn-cancel" @click="emit('cancel')">Cancelar</button>
-          <button class="btn-save" :disabled="!password.trim()" @click="handleConfirm">
+          <button class="btn-save" :disabled="code.length !== 6" @click="handleConfirm">
             🔓 Confirmar
           </button>
         </div>
@@ -133,7 +146,10 @@ function handleConfirm() {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text);
-  font-size: 13px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  text-align: center;
   padding: 9px 12px;
   font-family: inherit;
   transition: border-color 0.2s;

@@ -44,6 +44,12 @@ const SETTINGS_ITEMS = [
     href: '/settings/server' as const,
   },
   {
+    icon: 'lock.fill',
+    label: 'Acceso a Reportes',
+    subtitle: 'Generar código de seguridad para autorizar reportes en el POS',
+    href: '/settings/reports-security' as const,
+  },
+  {
     icon: 'magnifyingglass',
     label: 'Búsqueda de imágenes',
     subtitle: 'Proveedor usado para buscar fotos de producto',

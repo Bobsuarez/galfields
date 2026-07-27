@@ -1,4 +1,5 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '../../../composables/useToast'
 import { LOW_STOCK_THRESHOLD } from '../../../utils/stock'
@@ -104,14 +105,6 @@ interface LowStockReportRow {
   status: 'critico' | 'bajo'
 }
 
-// Local DB only keeps the current month's data long-term (older sales will
-// eventually live on a remote server, for administrative reasons), so a
-// range spanning more than a month needs extra verification. This is a
-// placeholder for that future remote-auth flow, not real security — swap
-// for a real check once the remote server exists.
-const REPORTS_DUMMY_PASSWORD = '0000'
-const MONTH_LIMIT_DAYS = 31
-
 function toDateStr(d: Date): string {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -146,6 +139,7 @@ function percentChange(current: number, previous: number): number {
 
 export function useReports() {
   const { show } = useToast()
+  const router = useRouter()
 
   const today          = new Date()
   const firstOfMonth   = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -162,10 +156,11 @@ export function useReports() {
   const productsNoMovement = ref<ProductNoMovement[]>([])
   const lowStock          = ref<LowStockItem[]>([])
   const isLoadingKpis     = ref(false)
-  const showPasswordGate  = ref(false)
-  const isRangeUnlocked   = ref(false)
-
-  const exceedsMonthLimit = computed(() => daysBetween(dateFrom.value, dateTo.value) > MONTH_LIMIT_DAYS)
+  // Shown on every mount of this composable (i.e. every time the user
+  // navigates into /reportes, since ReportsView isn't kept-alive) — access
+  // isn't cached across visits, only for the current unlocked view.
+  const showAccessGate    = ref(true)
+  const isUnlocked        = ref(false)
 
   async function fetchSummary(from: string, to: string): Promise<SalesSummary> {
     return invoke<SalesSummary>('get_sales_summary', { dateFrom: from, dateTo: to })
@@ -297,25 +292,32 @@ export function useReports() {
   }
 
   function applyDateRange(): void {
-    if (exceedsMonthLimit.value && !isRangeUnlocked.value) {
-      showPasswordGate.value = true
-      return
-    }
+    if (!isUnlocked.value) return
     loadReportsData()
   }
 
-  function confirmPasswordGate(password: string): void {
-    if (password !== REPORTS_DUMMY_PASSWORD) {
-      show('Contraseña incorrecta', 'error')
+  async function confirmAccessCode(code: string): Promise<void> {
+    let valid: boolean
+    try {
+      valid = await invoke<boolean>('validate_reports_access_code', { code })
+    } catch (e) {
+      show(typeof e === 'string' ? e : 'No se pudo validar el código', 'error')
       return
     }
-    isRangeUnlocked.value  = true
-    showPasswordGate.value = false
+
+    if (!valid) {
+      show('Código incorrecto', 'error')
+      return
+    }
+
+    isUnlocked.value     = true
+    showAccessGate.value = false
     loadReportsData()
   }
 
-  function cancelPasswordGate(): void {
-    showPasswordGate.value = false
+  function cancelAccessGate(): void {
+    showAccessGate.value = false
+    router.push('/pos')
   }
 
   const lineLabels = computed(() => dailySales.value.map(d => d.label))
@@ -326,17 +328,15 @@ export function useReports() {
 
   const barData = computed(() => hourlySales.value.map(h => ({ label: h.label, value: h.value })))
 
-  onMounted(loadReportsData)
-
   return {
     dateFrom,
     dateTo,
     kpis,
     isLoadingKpis,
-    showPasswordGate,
+    showAccessGate,
     applyDateRange,
-    confirmPasswordGate,
-    cancelPasswordGate,
+    confirmAccessCode,
+    cancelAccessGate,
     lineLabels,
     lineSeries,
     categorySales,

@@ -16,6 +16,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="locations" />
       <Stack.Screen name="invoicing" />
       <Stack.Screen name="server" />
+      <Stack.Screen name="reports-security" />
     </Stack>
   );
 }
