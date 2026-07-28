@@ -17,6 +17,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
                 pm.paymentMethodId, pm.methodName, SUM(p.amount), COUNT(p))
             FROM Payment p JOIN p.paymentMethod pm
             WHERE p.transaction.transactionDate BETWEEN :from AND :to
+              AND p.transaction.cancelledAt IS NULL
             GROUP BY pm.paymentMethodId, pm.methodName
             ORDER BY SUM(p.amount) DESC
             """)

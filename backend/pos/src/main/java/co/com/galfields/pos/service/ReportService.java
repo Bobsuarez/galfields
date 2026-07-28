@@ -41,7 +41,12 @@ public class ReportService {
     private final SaleItemRepository saleItemRepository;
     private final InventoryRepository inventoryRepository;
 
-    /** Covers "Ventas del día" (mobile calls with from=to=today). */
+    /**
+     * Covers "Ventas del día" (mobile calls with from=to=today). Excludes
+     * cancelled transactions ({@code cancelledAt IS NOT NULL}) — a voided
+     * sale was never real revenue, so it shouldn't inflate the total, count,
+     * or average ticket.
+     */
     public SalesSummaryResponse salesSummary(LocalDateTime from, LocalDateTime to) {
         return salesTransactionRepository.summarize(from, to);
     }
@@ -50,6 +55,7 @@ public class ReportService {
      * Covers both "Ventas por método de pago" and "Cierre de caja" — the
      * latter is this same aggregate scoped to a single day, by design (see
      * backend/pos's CLAUDE.md): no separate cash-session endpoint exists.
+     * Same cancelled-transaction exclusion as {@link #salesSummary}.
      */
     public List<PaymentMethodSalesResponse> salesByPaymentMethod(LocalDateTime from, LocalDateTime to) {
         return paymentRepository.summarizeByPaymentMethod(from, to);

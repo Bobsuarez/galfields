@@ -16,6 +16,10 @@ pub struct SalesSummary {
 /// (`'YYYY-MM-DD'` strings). Deliberately returns just one range's summary —
 /// period-over-period comparison (e.g. "vs previous week") is orchestration,
 /// not a single query, so it's composed in the frontend by calling this twice.
+/// Excludes cancelled sales (`cancelled_at IS NOT NULL`, see `sale_history.rs`)
+/// — a voided sale isn't real revenue, so it shouldn't count toward the total,
+/// the sale count, or items sold. Every other query below aggregating `sales`
+/// or `sale_items` applies the same exclusion for the same reason.
 #[tauri::command]
 pub fn get_sales_summary(
     state: State<AppState>,
@@ -29,7 +33,8 @@ pub fn get_sales_summary(
         .query_row(
             "SELECT COALESCE(SUM(total), 0), COUNT(*)
              FROM sales
-             WHERE date(created_at) BETWEEN ?1 AND ?2",
+             WHERE date(created_at) BETWEEN ?1 AND ?2
+               AND cancelled_at IS NULL",
             rusqlite::params![date_from, date_to],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
@@ -41,7 +46,8 @@ pub fn get_sales_summary(
             "SELECT COALESCE(SUM(si.quantity), 0)
              FROM sale_items si
              JOIN sales s ON s.id = si.sale_id
-             WHERE date(s.created_at) BETWEEN ?1 AND ?2",
+             WHERE date(s.created_at) BETWEEN ?1 AND ?2
+               AND s.cancelled_at IS NULL",
             rusqlite::params![date_from, date_to],
             |row| row.get(0),
         )
@@ -79,6 +85,7 @@ pub fn get_top_products(
              JOIN sales s ON s.id = si.sale_id
              JOIN products p ON p.id = si.product_id
              WHERE date(s.created_at) BETWEEN ?1 AND ?2
+               AND s.cancelled_at IS NULL
              GROUP BY si.product_id
              ORDER BY revenue DESC
              LIMIT ?3",
@@ -124,7 +131,8 @@ pub fn get_financial_summary(
         .query_row(
             "SELECT COALESCE(SUM(subtotal), 0), COALESCE(SUM(discount), 0), COALESCE(SUM(total), 0)
              FROM sales
-             WHERE date(created_at) BETWEEN ?1 AND ?2",
+             WHERE date(created_at) BETWEEN ?1 AND ?2
+               AND cancelled_at IS NULL",
             rusqlite::params![date_from, date_to],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
@@ -163,7 +171,7 @@ pub fn get_sales_by_day(
              )
              SELECT dates.d, COALESCE(SUM(s.total), 0)
              FROM dates
-             LEFT JOIN sales s ON date(s.created_at) = dates.d
+             LEFT JOIN sales s ON date(s.created_at) = dates.d AND s.cancelled_at IS NULL
              GROUP BY dates.d
              ORDER BY dates.d",
         )
@@ -206,6 +214,7 @@ pub fn get_sales_by_category(
              JOIN sales s ON s.id = si.sale_id
              JOIN products p ON p.id = si.product_id
              WHERE date(s.created_at) BETWEEN ?1 AND ?2
+               AND s.cancelled_at IS NULL
              GROUP BY category
              ORDER BY total DESC",
         )
@@ -245,6 +254,7 @@ pub fn get_sales_by_hour(
             "SELECT strftime('%H', created_at) AS hour, SUM(total) AS total
              FROM sales
              WHERE date(created_at) BETWEEN ?1 AND ?2
+               AND cancelled_at IS NULL
              GROUP BY hour
              ORDER BY hour",
         )
@@ -284,6 +294,7 @@ pub fn get_sales_by_payment_method(
              FROM sales s
              JOIN payment_method pm ON pm.id = s.payment_method
              WHERE date(s.created_at) BETWEEN ?1 AND ?2
+               AND s.cancelled_at IS NULL
              GROUP BY pm.id
              ORDER BY total DESC",
         )
@@ -332,6 +343,7 @@ pub fn get_products_without_movement(
                  SELECT 1 FROM sale_items si
                  JOIN sales s ON s.id = si.sale_id
                  WHERE si.product_id = p.id AND date(s.created_at) BETWEEN ?1 AND ?2
+                   AND s.cancelled_at IS NULL
                )
              ORDER BY p.product_name
              LIMIT ?3",
@@ -388,6 +400,7 @@ pub fn get_low_stock_report(
                       FROM sale_items si
                       JOIN sales s ON s.id = si.sale_id
                       WHERE si.product_id = p.id AND date(s.created_at) BETWEEN ?1 AND ?2
+                        AND s.cancelled_at IS NULL
                     ), 0) AS units_sold
              FROM products p
              WHERE p.is_active = 1 AND p.stock_quantity <= ?3

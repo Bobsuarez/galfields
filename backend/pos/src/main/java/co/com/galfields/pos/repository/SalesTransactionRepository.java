@@ -22,6 +22,7 @@ public interface SalesTransactionRepository extends JpaRepository<SalesTransacti
                 CASE WHEN COUNT(t) = 0 THEN 0 ELSE COALESCE(SUM(t.totalAmount), 0) / COUNT(t) END)
             FROM SalesTransaction t
             WHERE t.transactionDate BETWEEN :from AND :to
+              AND t.cancelledAt IS NULL
             """)
     SalesSummaryResponse summarize(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
