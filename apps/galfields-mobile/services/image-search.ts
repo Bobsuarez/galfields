@@ -13,16 +13,29 @@ export interface ImageSearchResult {
 }
 
 /**
+ * Product names here often end in a bare size ("Cuatro gaseosa 1.4", i.e.
+ * 1.4 litros with no unit attached) — harmless for humans but it derails
+ * Google Images: e.g. that exact query pulled in "Four Loko" results
+ * instead of the actual Quatro/Cuatro soda, while "Cuatro gaseosa" alone
+ * (no trailing number) matched correctly. Stripping a trailing bare
+ * number fixes this without needing a units field on the product form.
+ */
+function normalizeSearchQuery(query: string): string {
+  const stripped = query.replace(/\s+\d+(?:[.,]\d+)?\s*$/, '');
+  return stripped.trim() || query;
+}
+
+/**
  * Looks up product images, biased towards plain/white backgrounds so
  * results drop straight into a product photo without much cleanup, capped
- * at 10 (the picker's "first 10 results"). Dispatches to whichever
- * provider is selected in Configuración → Búsqueda de imágenes (see
- * `services/image-search-provider.ts`) — added as a switchable fallback
- * while Google Custom Search JSON API access issues get sorted out on the
- * Google Cloud side, without ripping out that implementation.
+ * at 20. Dispatches to whichever provider is selected in Configuración →
+ * Búsqueda de imágenes (see `services/image-search-provider.ts`) — added
+ * as a switchable fallback while Google Custom Search JSON API access
+ * issues get sorted out on the Google Cloud side, without ripping out
+ * that implementation.
  */
 export function searchProductImages(query: string): Promise<ImageSearchResult[]> {
-  const trimmed = query.trim();
+  const trimmed = normalizeSearchQuery(query.trim());
   if (!trimmed) return Promise.resolve([]);
 
   return imageSearchProvider() === 'serpapi' ? searchSerpApiImages(trimmed) : searchGoogleImages(trimmed);
@@ -56,7 +69,7 @@ async function searchGoogleImages(query: string): Promise<ImageSearchResult[]> {
     cx: GOOGLE_CX,
     q: query,
     searchType: 'image',
-    num: '10',
+    num: '20',
     safe: 'active',
     imgDominantColor: 'white',
   });
@@ -102,7 +115,7 @@ async function searchSerpApiImages(query: string): Promise<ImageSearchResult[]> 
   const params = new URLSearchParams({
     engine: 'google_images',
     q: query,
-    num: '10',
+    num: '20',
     safe: 'active',
     // Google Images' advanced "color" filter, same intent as the Google CSE
     // path's `imgDominantColor=white` — SerpApi just passes through Google's
@@ -124,8 +137,8 @@ async function searchSerpApiImages(query: string): Promise<ImageSearchResult[]> 
   console.log(`[image-search] (serpapi) "${query}" -> ${items.length} resultado(s)`);
 
   // SerpApi's `num` isn't a hard cap for the images engine the way Google's
-  // own API treats it — slice to keep the same "first 10" contract either way.
-  return items.slice(0, 10).map(item => ({
+  // own API treats it — slice to keep the same "first 20" contract either way.
+  return items.slice(0, 20).map(item => ({
     thumbnailUrl: item.thumbnail ?? item.original,
     fullUrl: item.original,
     title: item.title ?? '',
