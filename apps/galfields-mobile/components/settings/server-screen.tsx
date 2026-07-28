@@ -5,7 +5,7 @@ import { ReportHeader } from '@/components/reports/report-header';
 import { AppButton } from '@/components/ui/app-button';
 import { TextInputField } from '@/components/ui/text-input-field';
 import { useThemeColors } from '@/hooks/use-theme-colors';
-import { currentApiBaseUrl, resetApiBaseUrl, setApiBaseUrl } from '@/services/api-base-url';
+import { currentApiBaseUrl, detectLocalBackendUrl, resetApiBaseUrl, setApiBaseUrl } from '@/services/api-base-url';
 
 /** Lets the app point at a different backend without a rebuild — same
  * intent as the desktop POS's Configuración → Reglas y Sincronización
@@ -18,6 +18,7 @@ export function ServerScreen() {
   const [url, setUrl] = useState(currentApiBaseUrl() ?? '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const localBackendUrl = detectLocalBackendUrl();
 
   const handleSave = async () => {
     setSaving(true);
@@ -25,6 +26,23 @@ export function ServerScreen() {
     try {
       await setApiBaseUrl(url);
       Alert.alert('Guardado', 'La app ya está usando la nueva URL del servidor.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUseLocal = async () => {
+    if (!localBackendUrl) return;
+    setSaving(true);
+    setError('');
+    try {
+      await setApiBaseUrl(localBackendUrl);
+      setUrl(localBackendUrl);
+      Alert.alert('Guardado', 'La app ya está usando el servidor local.', [
         { text: 'OK', onPress: () => router.back() },
       ]);
     } catch (err) {
@@ -69,6 +87,15 @@ export function ServerScreen() {
           }}
           error={error}
         />
+
+        {localBackendUrl && (
+          <AppButton
+            label="Usar servidor local"
+            variant="outline"
+            onPress={handleUseLocal}
+            disabled={saving}
+          />
+        )}
 
         <View style={styles.actions}>
           <View style={styles.actionBtn}>

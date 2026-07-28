@@ -19,6 +19,13 @@ async function browseInvoiceFolder() {
   }
 }
 
+// ── Local dev server shortcut (spec 02-servidor-local-desarrollo) ──────────
+// Only fills the field — still goes through the existing "Guardar Cambios"
+// button to persist, same as every other field in this form.
+function useLocalServer() {
+  props.settings.sync.apiBaseUrl = 'http://localhost:8080'
+}
+
 // ── Invoice numbering (prefix/range assigned centrally from mobile) ────────
 const isSyncingInvoicing = ref(false)
 const invoicingSyncMessage = ref('')
@@ -123,12 +130,15 @@ async function syncInvoicing() {
 
       <div class="field">
         <label class="field-label">URL del servidor (nube)</label>
-        <input
-          v-model.trim="settings.sync.apiBaseUrl"
-          type="url"
-          class="field-input"
-          placeholder="https://galfields.kinforgeworks.com"
-        />
+        <div class="field-suffix-wrap">
+          <input
+            v-model.trim="settings.sync.apiBaseUrl"
+            type="url"
+            class="field-input"
+            placeholder="https://galfields.kinforgeworks.com"
+          />
+          <button type="button" class="browse-btn" @click="useLocalServer">Usar servidor local</button>
+        </div>
         <p class="field-hint">A dónde se conecta esta terminal para sincronizar catálogo y reportar ventas. Solo cámbialo si sabes lo que haces — un valor incorrecto rompe la sincronización.</p>
       </div>
       <div class="field">

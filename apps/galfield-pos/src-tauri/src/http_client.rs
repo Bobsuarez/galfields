@@ -24,6 +24,11 @@ use crate::logging;
 /// that hasn't run yet) — see `api_base_url` below for the real source.
 pub const DEFAULT_API_BASE_URL: &str = "https://galfields.kinforgeworks.com";
 
+/// What `npm run tauri dev` resolves to when `sync.api_base_url` is still
+/// exactly the production default seeded by migration `007` — see
+/// `api_base_url` below.
+const LOCAL_DEV_DEFAULT: &str = "http://localhost:8080";
+
 static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 fn client() -> &'static reqwest::Client {
@@ -37,14 +42,31 @@ fn client() -> &'static reqwest::Client {
 /// caching it — same reasoning `sales_sync.rs`'s background loop re-reads
 /// `sync.sales_retry_minutes` every wake — so changing it in Configuración
 /// takes effect on the next sync, not just after restarting the app.
+///
+/// **Debug builds only** (`cfg!(debug_assertions)`, i.e. `npm run tauri
+/// dev` — never `npm run tauri build`): if the stored value is still
+/// exactly `DEFAULT_API_BASE_URL` (the production URL seeded by migration
+/// `007_api_base_url_setting`, meaning it was never touched from
+/// Configuración), this resolves to `LOCAL_DEV_DEFAULT` instead — every
+/// `npm run tauri dev` run points at the local backend by default, with no
+/// manual setup. Any value the user explicitly saved (local or not) always
+/// wins, in dev and in production alike, since it no longer matches the
+/// seeded default.
 pub fn api_base_url(db: &Database) -> String {
-    db.conn
+    let stored = db
+        .conn
         .query_row(
             "SELECT value_property FROM app_settings WHERE key_property = 'sync.api_base_url'",
             [],
             |row| row.get::<_, String>(0),
         )
-        .unwrap_or_else(|_| DEFAULT_API_BASE_URL.to_string())
+        .unwrap_or_else(|_| DEFAULT_API_BASE_URL.to_string());
+
+    if cfg!(debug_assertions) && stored == DEFAULT_API_BASE_URL {
+        return LOCAL_DEV_DEFAULT.to_string();
+    }
+
+    stored
 }
 
 pub struct HttpResponse {

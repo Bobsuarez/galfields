@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
 const STORAGE_KEY = 'apiBaseUrl';
+const LOCAL_DEV_PORT = 8080;
 
 /** In-memory cache, populated once by `initApiBaseUrl()` at app boot (see
  * `app/_layout.tsx`) — `apiBaseUrl()` itself stays synchronous, since every
@@ -51,4 +53,21 @@ export async function setApiBaseUrl(url: string): Promise<void> {
 export async function resetApiBaseUrl(): Promise<void> {
   await AsyncStorage.removeItem(STORAGE_KEY);
   cachedBaseUrl = envDefault() ?? null;
+}
+
+/** Derives `http://<lan-ip>:8080` from the LAN IP the phone already used to
+ * reach the Expo bundler (`hostUri`, e.g. `"192.168.1.5:8081"`) — no manual
+ * IP typing, and it keeps working across WiFi/DHCP changes since it's read
+ * fresh each call, not cached. Returns `null` when `hostUri` isn't available
+ * (e.g. a production build with no Expo Go/dev client attached), so the
+ * caller can hide the "Usar servidor local" button instead of ever saving an
+ * empty/invalid URL. */
+export function detectLocalBackendUrl(): string | null {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (!hostUri) return null;
+
+  const host = hostUri.split(':')[0];
+  if (!host) return null;
+
+  return `http://${host}:${LOCAL_DEV_PORT}`;
 }
