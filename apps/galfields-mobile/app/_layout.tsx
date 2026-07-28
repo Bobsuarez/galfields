@@ -6,7 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { AuthProvider } from '@/contexts/auth-context';
+import { AuthProvider, AuthSession, restoreAuthSession } from '@/contexts/auth-context';
 import { ProductsProvider } from '@/contexts/products-context';
 import { initApiBaseUrl } from '@/services/api-base-url';
 import { initImageSearchProvider } from '@/services/image-search-provider';
@@ -16,16 +16,23 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [configReady, setConfigReady] = useState(false);
+  const [authSession, setAuthSession] = useState<AuthSession | null>(null);
 
   useEffect(() => {
     // ProductsProvider below fetches immediately on mount, and every
     // services/*-api.ts call is a synchronous apiBaseUrl() read - the
     // server URL (possibly a Configuración → Servidor override in
     // AsyncStorage) must be loaded before any of that can render.
-    Promise.all([initApiBaseUrl(), initImageSearchProvider()]).finally(() => {
-      setConfigReady(true);
-      SplashScreen.hideAsync();
-    });
+    // restoreAuthSession() is loaded the same way, so a persisted login
+    // (see contexts/auth-context.tsx) is already in place by first render
+    // - otherwise every auth-gated route would redirect to /login for a
+    // moment while AsyncStorage loads, even for an already-logged-in user.
+    Promise.all([initApiBaseUrl(), initImageSearchProvider(), restoreAuthSession()])
+      .then(([, , session]) => setAuthSession(session))
+      .finally(() => {
+        setConfigReady(true);
+        SplashScreen.hideAsync();
+      });
   }, []);
 
   if (!configReady) {
@@ -33,7 +40,7 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
+    <AuthProvider initialSession={authSession}>
       <ProductsProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack screenOptions={{ headerShown: false }}>

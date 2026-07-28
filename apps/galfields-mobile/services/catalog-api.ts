@@ -1,11 +1,12 @@
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
+import { authenticatedFetch } from './authenticated-fetch';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = init?.method ?? 'GET';
   const url = `${apiBaseUrl()}${path}`;
 
-  const response = await fetch(url, {
+  const response = await authenticatedFetch(url, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
@@ -124,8 +125,17 @@ export const locationsApi = {
 // [rangeStart, rangeEnd]) so no two terminals ever mint the same invoice
 // number while working offline. See backend/pos's CLAUDE.md
 // ("Invoice numbering ranges") and apps/galfield-pos's CLAUDE.md.
+//
+// terminalId, not terminalCode (spec 01-login-empleados-roles, backend step
+// 3): the range is now assigned to a real terminals row instead of a loose
+// string. The backend still echoes back terminalCode too (denormalized, see
+// backend/pos's CLAUDE.md), which is all this file needs for display -
+// resolving a typed terminalCode to the terminalId the create/update
+// request actually needs happens in app/settings/invoicing.tsx, since that
+// requires the live terminals list from services/terminals-api.ts.
 interface RemoteInvoiceNumberingRange {
   rangeId: number;
+  terminalId: number;
   terminalCode: string;
   prefix: string;
   rangeStart: number;
@@ -137,13 +147,14 @@ export interface CatalogInvoicingRange {
   // Reuses CatalogScreen's generic `{ id, name }` shape — the terminal code
   // *is* what identifies each row, so it doubles as the display name.
   name: string;
+  terminalId: number;
   prefix: string;
   rangeStart: number;
   rangeEnd: number;
 }
 
 export interface InvoicingRangeFormData {
-  terminalCode: string;
+  terminalId: number;
   prefix: string;
   rangeStart: number;
   rangeEnd: number;
@@ -152,6 +163,7 @@ export interface InvoicingRangeFormData {
 const mapInvoicingRange = (r: RemoteInvoiceNumberingRange): CatalogInvoicingRange => ({
   id: r.rangeId,
   name: r.terminalCode,
+  terminalId: r.terminalId,
   prefix: r.prefix,
   rangeStart: r.rangeStart,
   rangeEnd: r.rangeEnd,

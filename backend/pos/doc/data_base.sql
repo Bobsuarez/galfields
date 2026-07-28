@@ -37,12 +37,17 @@ CREATE TABLE brands
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- can_login_mobile/can_login_desktop added by V9__employee_auth.sql —
+-- replace comparing by role_name ("Administrador") so any future role
+-- can be enabled for mobile and/or desktop login without touching code.
 CREATE TABLE employee_roles
 (
-    role_id     BIGSERIAL PRIMARY KEY,
-    role_name   VARCHAR(50) NOT NULL,
-    permissions JSONB,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    role_id            BIGSERIAL PRIMARY KEY,
+    role_name          VARCHAR(50) NOT NULL,
+    permissions        JSONB,
+    can_login_mobile   BOOLEAN   NOT NULL DEFAULT FALSE,
+    can_login_desktop  BOOLEAN   NOT NULL DEFAULT FALSE,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE payment_methods
@@ -96,6 +101,26 @@ CREATE TABLE employees
     logo_image    BIGSERIAL REFERENCES attach_files (attach_files_id),
     is_active     BOOLEAN   DEFAULT TRUE,
     created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Terminales de venta (galfield-pos), y su asignación a empleados —
+-- V9__employee_auth.sql. terminal_code es lo mismo que el desktop POS
+-- configura localmente en Configuración; antes vivía solo como un string
+-- suelto en invoice_numbering_ranges.terminal_code.
+CREATE TABLE terminals
+(
+    terminal_id   BIGSERIAL PRIMARY KEY,
+    terminal_code VARCHAR(50) NOT NULL UNIQUE,
+    name          VARCHAR(100),
+    is_active     BOOLEAN   NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE employee_terminals
+(
+    employee_id BIGINT NOT NULL REFERENCES employees (employee_id),
+    terminal_id BIGINT NOT NULL REFERENCES terminals (terminal_id),
+    PRIMARY KEY (employee_id, terminal_id)
 );
 
 CREATE TABLE customers
@@ -306,15 +331,18 @@ CREATE INDEX idx_variant_attributes_lookup ON variant_attributes (attribute_name
 CREATE INDEX idx_employees_login ON employees (username) WHERE is_active = TRUE;
 
 -- 8. Numeración de facturas (rangos DIAN por terminal) — V5__invoice_numbering_ranges.sql
+-- terminal_code (string suelto) reemplazado por terminal_id FK a
+-- terminals — V9__employee_auth.sql. UNIQUE se mueve con la columna:
+-- sigue habiendo a lo sumo un rango por terminal.
 CREATE TABLE invoice_numbering_ranges
 (
-    range_id      BIGSERIAL PRIMARY KEY,
-    terminal_code VARCHAR(50) NOT NULL UNIQUE,
-    prefix        VARCHAR(20) NOT NULL,
-    range_start   BIGINT      NOT NULL,
-    range_end     BIGINT      NOT NULL,
-    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    range_id    BIGSERIAL PRIMARY KEY,
+    terminal_id BIGINT      NOT NULL UNIQUE REFERENCES terminals (terminal_id),
+    prefix      VARCHAR(20) NOT NULL,
+    range_start BIGINT      NOT NULL,
+    range_end   BIGINT      NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CHECK (range_end >= range_start)
 );
 

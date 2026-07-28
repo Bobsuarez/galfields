@@ -155,7 +155,7 @@ pub fn get_sale_detail(state: State<AppState>, sale_id: i64) -> Result<SaleDetai
 pub async fn cancel_sale(state: State<'_, AppState>, sale_id: i64) -> Result<(), String> {
     const LOC: &str = "sale_history::cancel_sale";
 
-    let (sync_uuid, synced_at, cancelled_at, items, api_base_url) = {
+    let (sync_uuid, synced_at, cancelled_at, items, api_base_url, token) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
 
         let (sync_uuid, synced_at, cancelled_at): (Option<String>, Option<String>, Option<String>) = db
@@ -179,7 +179,7 @@ pub async fn cancel_sale(state: State<'_, AppState>, sale_id: i64) -> Result<(),
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        (sync_uuid, synced_at, cancelled_at, items, http_client::api_base_url(&db))
+        (sync_uuid, synced_at, cancelled_at, items, http_client::api_base_url(&db), crate::auth::auth_token(&db))
     };
 
     if cancelled_at.is_some() {
@@ -192,10 +192,10 @@ pub async fn cancel_sale(state: State<'_, AppState>, sale_id: i64) -> Result<(),
 
         logging::step(LOC, format!("venta {sale_id} ya sincronizada, cancelando en la nube primero"));
 
-        let response = http_client::post(&format!(
-            "{}/api/sales/by-client-event/{}/cancel",
-            api_base_url, sync_uuid
-        ))
+        let response = http_client::post(
+            &format!("{}/api/sales/by-client-event/{}/cancel", api_base_url, sync_uuid),
+            token.as_deref(),
+        )
         .await?;
 
         if !response.is_success() {

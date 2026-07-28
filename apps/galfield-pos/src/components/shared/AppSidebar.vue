@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import AppIcon from "./AppIcon.vue";
 import type { NavItem } from "../../types";
 import { useSidebarBanner } from "../../composables/useSidebarBanner";
 import { formatCurrency, formatDate, formatTime } from "../../utils/currency";
+import { useEmployeeSession, hasRoutePermission } from "../../composables/useEmployeeSession";
 
 const router = useRouter();
 const route = useRoute();
+const { session, logout } = useEmployeeSession();
 
 const { activeView, lowStockItems, todaySalesTotal, bannerTimestamp, mascotSrc } =
   useSidebarBanner();
@@ -47,6 +50,15 @@ const stubRoutes = [
   "/compras",
 ];
 
+// Hides (not just blocks) whatever the logged-in role's permissions don't
+// allow (spec 01-login-empleados-roles, step 15) - the router guard
+// (router/index.ts) still blocks direct navigation too, using the same
+// ROUTE_PERMISSIONS map, so this is a UX nicety on top of a real gate, not
+// the only thing enforcing it.
+const visibleNavItems = computed(() =>
+  navItems.filter((item) => hasRoutePermission(session.value?.permissions, item.route)),
+);
+
 function isActive(item: NavItem): boolean {
   return route.path === item.route || route.path.startsWith(item.route + "/");
 }
@@ -56,13 +68,18 @@ function navigate(item: NavItem) {
     router.push(item.route);
   }
 }
+
+async function handleLogout() {
+  await logout();
+  router.push("/login");
+}
 </script>
 
 <template>
   <aside class="sidebar">
     <nav class="sidebar-nav">
       <button
-        v-for="item in navItems"
+        v-for="item in visibleNavItems"
         :key="item.id"
         class="nav-item"
         :class="{ 'nav-item--active': isActive(item) }"
@@ -71,6 +88,11 @@ function navigate(item: NavItem) {
         <AppIcon :name="item.icon" :size="17" class="nav-icon" />
         <span class="nav-label">{{ item.label }}</span>
         <div v-if="isActive(item)" class="nav-indicator" />
+      </button>
+
+      <button v-if="session" class="nav-item nav-item--logout" @click="handleLogout">
+        <AppIcon name="log-out" :size="17" class="nav-icon" />
+        <span class="nav-label">Cerrar sesión</span>
       </button>
     </nav>
 
@@ -174,6 +196,16 @@ function navigate(item: NavItem) {
 .nav-item--active {
   color: var(--color-primary);
   background: rgba(242, 141, 53, 0.1);
+}
+
+.nav-item--logout {
+  margin-top: 8px;
+  color: var(--color-danger);
+}
+
+.nav-item--logout:hover {
+  background: rgba(229, 57, 53, 0.1);
+  color: var(--color-danger);
 }
 
 .nav-icon {

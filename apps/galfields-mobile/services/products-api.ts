@@ -1,5 +1,6 @@
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
+import { authenticatedFetch } from './authenticated-fetch';
 import { appendImagePart, jsonPart } from '@/utils/multipart-form';
 import type { ProductInput, ProductVariantDraft } from '@/types/product';
 
@@ -82,7 +83,7 @@ export async function fetchProducts(page = 0, size = 20, includeInactive = false
   });
   const url = `${apiBaseUrl()}/api/products?${params.toString()}`;
 
-  const response = await fetch(url);
+  const response = await authenticatedFetch(url);
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -105,7 +106,7 @@ export async function fetchProducts(page = 0, size = 20, includeInactive = false
 
 /** GET /api/products/{id} — used to prefill the edit form. */
 export async function fetchProduct(productId: string): Promise<RemoteProduct> {
-  const response = await fetch(`${apiBaseUrl()}/api/products/${productId}`);
+  const response = await authenticatedFetch(`${apiBaseUrl()}/api/products/${productId}`);
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -163,7 +164,7 @@ export async function createProduct(payload: ProductInput): Promise<RemoteProduc
     hasMainImage: !!payload.imageUri,
   });
 
-  const response = await fetch(`${apiBaseUrl()}/api/products`, {
+  const response = await authenticatedFetch(`${apiBaseUrl()}/api/products`, {
     method: 'POST',
     body: formData,
   });
@@ -187,7 +188,7 @@ export async function updateProduct(productId: string, payload: ProductInput): P
     hasMainImage: !!payload.imageUri,
   });
 
-  const response = await fetch(`${apiBaseUrl()}/api/products/${productId}`, {
+  const response = await authenticatedFetch(`${apiBaseUrl()}/api/products/${productId}`, {
     method: 'PUT',
     body: formData,
   });
@@ -208,7 +209,7 @@ export async function updateProduct(productId: string, payload: ProductInput): P
  * module (see `app/inventory/`) to deactivate a product. */
 export async function deactivateProduct(productId: number): Promise<void> {
   const path = `/api/products/${productId}`;
-  const response = await fetch(`${apiBaseUrl()}${path}`, { method: 'DELETE' });
+  const response = await authenticatedFetch(`${apiBaseUrl()}${path}`, { method: 'DELETE' });
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -222,7 +223,7 @@ export async function deactivateProduct(productId: number): Promise<void> {
 /** PUT /api/products/{id}/activate — counterpart to `deactivateProduct`. */
 export async function activateProduct(productId: number): Promise<RemoteProduct> {
   const path = `/api/products/${productId}/activate`;
-  const response = await fetch(`${apiBaseUrl()}${path}`, { method: 'PUT' });
+  const response = await authenticatedFetch(`${apiBaseUrl()}${path}`, { method: 'PUT' });
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');

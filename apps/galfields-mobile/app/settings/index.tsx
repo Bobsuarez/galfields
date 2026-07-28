@@ -32,6 +32,24 @@ const SETTINGS_ITEMS = [
     href: '/settings/payment-methods' as const,
   },
   {
+    icon: 'desktopcomputer',
+    label: 'Terminales',
+    subtitle: 'Gestionar terminales de venta (galfield-pos)',
+    href: '/settings/terminals' as const,
+  },
+  {
+    icon: 'shield.fill',
+    label: 'Roles',
+    subtitle: 'Permisos por módulo y acceso a mobile/desktop',
+    href: '/settings/roles' as const,
+  },
+  {
+    icon: 'person.fill',
+    label: 'Empleados',
+    subtitle: 'Usuario, clave, rol y terminales asignadas',
+    href: '/settings/employees' as const,
+  },
+  {
     icon: 'doc.text.fill',
     label: 'Numeración de facturas',
     subtitle: 'Prefijo y rango DIAN autorizado por terminal',

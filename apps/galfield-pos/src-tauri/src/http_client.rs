@@ -58,26 +58,38 @@ impl HttpResponse {
     }
 }
 
-pub async fn get(url: &str) -> Result<HttpResponse, String> {
+/// `token` is this terminal's cached employee JWT (`auth::auth_token(&db)`,
+/// spec 01-login-empleados-roles step 16) — `None` for the one call that
+/// must never carry one (`auth::login` itself, always public) or when
+/// nothing is cached yet (no employee has logged in on this terminal). An
+/// expired-but-cached token is still sent as-is (`expires_at` isn't checked
+/// anywhere on this side — that's step 17): the backend rejects it with a
+/// clean 401 like any other invalid token, which every caller already
+/// treats as a graceful non-success response, not a crash.
+pub async fn get(url: &str, token: Option<&str>) -> Result<HttpResponse, String> {
     logging::step("http_client::get", format!("--> GET {url}"));
-    send(client().get(url)).await
+    send(client().get(url), token).await
 }
 
 /// For endpoints that take no request body (e.g. the `/cancel` actions) —
 /// `post_json` always requires a serializable body, which would force
 /// callers with nothing to send to serialize `()`/`null` for no reason.
-pub async fn post(url: &str) -> Result<HttpResponse, String> {
+pub async fn post(url: &str, token: Option<&str>) -> Result<HttpResponse, String> {
     logging::step("http_client::post", format!("--> POST {url}"));
-    send(client().post(url)).await
+    send(client().post(url), token).await
 }
 
-pub async fn post_json<T: Serialize>(url: &str, body: &T) -> Result<HttpResponse, String> {
+pub async fn post_json<T: Serialize>(url: &str, body: &T, token: Option<&str>) -> Result<HttpResponse, String> {
     let body_json = serde_json::to_string(body).unwrap_or_else(|_| "<unserializable body>".to_string());
     logging::step("http_client::post_json", format!("--> POST {url} | body: {body_json}"));
-    send(client().post(url).json(body)).await
+    send(client().post(url).json(body), token).await
 }
 
-async fn send(request: reqwest::RequestBuilder) -> Result<HttpResponse, String> {
+async fn send(request: reqwest::RequestBuilder, token: Option<&str>) -> Result<HttpResponse, String> {
+    let request = match token {
+        Some(t) => request.bearer_auth(t),
+        None => request,
+    };
     let response = request.send().await.map_err(|e| {
         logging::step("http_client::send", format!("<-- connection error: {e}"));
         format!("No se pudo conectar con el servidor: {e}")

@@ -137,9 +137,9 @@ pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, St
     logging::step(LOC, "iniciando sincronización de productos");
 
     // Scoped so the MutexGuard drops before the loop below, which awaits.
-    let api_base_url = {
+    let (api_base_url, token) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        crate::http_client::api_base_url(&db)
+        (crate::http_client::api_base_url(&db), crate::auth::auth_token(&db))
     };
 
     let mut all_rows: Vec<LocalProductRow> = Vec::new();
@@ -152,7 +152,7 @@ pub async fn sync_products(state: State<'_, AppState>) -> Result<SyncSummary, St
             api_base_url, page, PAGE_SIZE
         );
 
-        let response = crate::http_client::get(&url).await?;
+        let response = crate::http_client::get(&url, token.as_deref()).await?;
 
         if !response.is_success() {
             return Err(format!(

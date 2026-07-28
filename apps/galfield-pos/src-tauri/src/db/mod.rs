@@ -49,6 +49,7 @@ impl Database {
         self.apply_migration("007_api_base_url_setting", include_str!("../../migrations/007_api_base_url_setting.sql"))?;
         self.apply_migration("008_invoice_snapshot", include_str!("../../migrations/008_invoice_snapshot.sql"))?;
         self.apply_migration("009_sales_cancellation", include_str!("../../migrations/009_sales_cancellation.sql"))?;
+        self.apply_migration("010_employee_session", include_str!("../../migrations/010_employee_session.sql"))?;
         Ok(())
     }
 

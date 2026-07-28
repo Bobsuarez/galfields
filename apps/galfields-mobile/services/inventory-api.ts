@@ -1,5 +1,6 @@
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
+import { authenticatedFetch } from './authenticated-fetch';
 import { generateUuid } from '@/utils/uuid';
 
 interface StockAdjustmentResult {
@@ -32,7 +33,7 @@ export async function adjustVariantStock(variantId: number, quantityDelta: numbe
 
   console.log(`[inventory-api] POST ${path}`, body);
 
-  const response = await fetch(`${apiBaseUrl()}${path}`, {
+  const response = await authenticatedFetch(`${apiBaseUrl()}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

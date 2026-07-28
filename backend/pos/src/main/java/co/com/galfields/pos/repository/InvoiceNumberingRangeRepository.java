@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InvoiceNumberingRangeRepository extends JpaRepository<InvoiceNumberingRange, Long> {
 
-    List<InvoiceNumberingRange> findAllByOrderByTerminalCodeAsc();
+    List<InvoiceNumberingRange> findAllByOrderByTerminal_TerminalCodeAsc();
 
-    Optional<InvoiceNumberingRange> findByTerminalCode(String terminalCode);
+    Optional<InvoiceNumberingRange> findByTerminal_TerminalId(Long terminalId);
 }

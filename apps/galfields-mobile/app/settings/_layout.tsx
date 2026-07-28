@@ -14,6 +14,9 @@ export default function SettingsLayout() {
       <Stack.Screen name="categories" />
       <Stack.Screen name="brands" />
       <Stack.Screen name="locations" />
+      <Stack.Screen name="terminals" />
+      <Stack.Screen name="roles" />
+      <Stack.Screen name="employees" />
       <Stack.Screen name="invoicing" />
       <Stack.Screen name="server" />
       <Stack.Screen name="reports-security" />

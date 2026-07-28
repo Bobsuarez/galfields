@@ -30,6 +30,12 @@ public class EmployeeRole {
     @JdbcTypeCode(SqlTypes.JSON)
     private String permissions;
 
+    @Column(name = "can_login_mobile", nullable = false)
+    private boolean canLoginMobile;
+
+    @Column(name = "can_login_desktop", nullable = false)
+    private boolean canLoginDesktop;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

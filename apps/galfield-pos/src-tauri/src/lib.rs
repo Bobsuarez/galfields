@@ -1,3 +1,4 @@
+mod auth;
 mod catalog_sync;
 mod db;
 mod http_client;
@@ -68,6 +69,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             greet,
+            auth::login,
+            auth::get_session,
+            auth::logout,
             settings::get_settings,
             settings::save_settings,
             pending_sales::save_pending_sale,

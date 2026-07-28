@@ -202,9 +202,9 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
         }
     });
 
-    let api_base_url = {
+    let (api_base_url, token) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        http_client::api_base_url(&db)
+        (http_client::api_base_url(&db), crate::auth::auth_token(&db))
     };
 
     let mut pushed_count: i64 = 0;
@@ -244,7 +244,7 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
             invoice_number: sale.invoice_number.clone(),
         };
 
-        let response = http_client::post_json(&format!("{}/api/sales", api_base_url), &payload).await;
+        let response = http_client::post_json(&format!("{}/api/sales", api_base_url), &payload, token.as_deref()).await;
 
         match response {
             Ok(res) if res.is_success() => {

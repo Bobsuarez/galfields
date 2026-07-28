@@ -60,6 +60,10 @@ const MAPPING = {
   'doc.text.fill': 'receipt',
   // Server / connection settings
   'server.rack': 'dns',
+  // Terminals (spec 01-login-empleados-roles)
+  'desktopcomputer': 'computer',
+  // Employee roles (spec 01-login-empleados-roles)
+  'shield.fill': 'security',
 } as IconMapping;
 
 /**

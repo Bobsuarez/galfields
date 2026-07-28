@@ -32,9 +32,9 @@ pub async fn validate_reports_access_code(
     const LOC: &str = "reports_access::validate_reports_access_code";
 
     // Scoped so the MutexGuard drops before the `.await` below.
-    let api_base_url = {
+    let (api_base_url, token) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        http_client::api_base_url(&db)
+        (http_client::api_base_url(&db), crate::auth::auth_token(&db))
     };
 
     logging::step(LOC, "validando código de acceso a reportes");
@@ -42,6 +42,7 @@ pub async fn validate_reports_access_code(
     let response = http_client::post_json(
         &format!("{api_base_url}/api/reports-access-code/validate"),
         &ValidateRequestBody { code },
+        token.as_deref(),
     )
     .await?;
 

@@ -2,9 +2,12 @@ package co.com.galfields.pos.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import lombok.Getter;
@@ -23,8 +26,11 @@ public class InvoiceNumberingRange {
     @Column(name = "range_id")
     private Long rangeId;
 
-    @Column(name = "terminal_code", nullable = false, unique = true, length = 50)
-    private String terminalCode;
+    // One range per terminal - unique = true mirrors the DB's
+    // uq_invoice_numbering_ranges_terminal_id constraint (V9__employee_auth.sql).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "terminal_id", nullable = false, unique = true)
+    private Terminal terminal;
 
     @Column(nullable = false, length = 20)
     private String prefix;

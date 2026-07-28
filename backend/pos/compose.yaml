@@ -1,0 +1,94 @@
+# Local Postgres + MinIO + the backend/pos app itself, since this repo has
+# no shared compose files checked in (see CLAUDE.md's "Local infra" section
+# — it references ../postgrest/compose.yaml / ../../minio/compose.yaml,
+# which live in an infra repo not present here). Self-contained: single
+# Postgres instance used for both DB_URL_PRIMARY and DB_URL_REPLICA (no real
+# replication locally, just satisfying RoutingDataSource's two DataSources
+# at boot), plus MinIO (MinioBucketInitializer's @PostConstruct fails app
+# startup outright if it can't reach this, so it's not optional even for a
+# quick migration/login smoke test).
+#
+# Usage (podman):
+#   podman compose up -d              # infra + app, builds the app image from ./Dockerfile
+#   podman compose up -d postgres minio   # infra only — pair with .env.local.example +
+#                                          # `gradle bootRun` on the host for faster iteration
+#                                          # (no image rebuild per code change)
+#   podman compose down               # stop, keep volumes (data persists)
+#   podman compose down -v            # stop and wipe volumes too
+#   podman compose up -d --build      # rebuild the app image after a code change
+#
+# app's env vars point at the other two services by their compose service
+# name (postgres/minio), not localhost — containers resolve each other over
+# the network compose creates, unlike a host-side `gradle bootRun` (see
+# .env.local.example for that path, which uses localhost + the host-mapped
+# ports below instead).
+
+services:
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    container_name: galfields-pos-postgres
+    environment:
+      POSTGRES_DB: pos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - galfields-pos-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: docker.io/minio/minio:latest
+    container_name: galfields-pos-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - galfields-pos-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: galfields-pos-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DB_URL_PRIMARY: jdbc:postgresql://postgres:5432/pos
+      DB_USER_PRIMARY: postgres
+      DB_PASSWORD_PRIMARY: postgres
+      DB_URL_REPLICA: jdbc:postgresql://postgres:5432/pos
+      DB_USER_REPLICA: postgres
+      DB_PASSWORD_REPLICA: postgres
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: galfields-products
+      # Fixed, committed dev-only secret — same "not a real secret" status
+      # as the Postgres/MinIO credentials above, only for this local stack.
+      # A real environment (see application.properties) always sets its own
+      # via JWT_SECRET, never this default.
+      JWT_SECRET: local-dev-only-jwt-secret-change-me-please-not-for-prod
+      SERVER_PORT: 8080
+    ports:
+      - "8080:8080"
+
+volumes:
+  galfields-pos-postgres-data:
+  galfields-pos-minio-data:

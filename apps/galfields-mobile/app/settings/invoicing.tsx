@@ -1,7 +1,20 @@
+import { useEffect, useState } from 'react';
 import { CatalogScreen } from '@/components/settings/catalog-screen';
 import { invoicingRangesApi, type CatalogInvoicingRange, type InvoicingRangeFormData } from '@/services/catalog-api';
+import { terminalsApi, type Terminal } from '@/services/terminals-api';
 
 export default function InvoicingScreen() {
+  // A range is assigned to a real terminals row (terminalId), not a loose
+  // string (see services/catalog-api.ts) - the admin still just types the
+  // terminal_code they already know (same field as before this changed),
+  // and this list is what resolves that typed code back to the id the
+  // backend actually needs.
+  const [terminals, setTerminals] = useState<Terminal[]>([]);
+
+  useEffect(() => {
+    terminalsApi.list().then(setTerminals).catch(() => {});
+  }, []);
+
   return (
     <CatalogScreen<CatalogInvoicingRange, InvoicingRangeFormData>
       title="Numeración de facturas"
@@ -22,12 +35,19 @@ export default function InvoicingScreen() {
         rangeStart: String(item.rangeStart),
         rangeEnd: String(item.rangeEnd),
       })}
-      fromFormValues={values => ({
-        terminalCode: values.terminalCode.trim(),
-        prefix: values.prefix.trim(),
-        rangeStart: Number(values.rangeStart),
-        rangeEnd: Number(values.rangeEnd),
-      })}
+      fromFormValues={values => {
+        const code = values.terminalCode.trim();
+        const terminal = terminals.find(t => t.terminalCode.toLowerCase() === code.toLowerCase());
+        if (!terminal) {
+          throw new Error(`No existe una terminal con código "${code}". Créala primero en Configuración → Terminales.`);
+        }
+        return {
+          terminalId: terminal.id,
+          prefix: values.prefix.trim(),
+          rangeStart: Number(values.rangeStart),
+          rangeEnd: Number(values.rangeEnd),
+        };
+      }}
     />
   );
 }

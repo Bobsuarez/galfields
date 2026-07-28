@@ -1,5 +1,6 @@
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
+import { authenticatedFetch } from './authenticated-fetch';
 
 export interface SalesSummary {
   totalSales: number;
@@ -110,7 +111,7 @@ function dateParams(range?: DateRange): URLSearchParams {
 
 async function getJson<T>(path: string): Promise<T> {
   const url = `${apiBaseUrl()}${path}`;
-  const response = await fetch(url);
+  const response = await authenticatedFetch(url);
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -160,7 +161,7 @@ export function formatInvoiceNumber(invoice: { transactionId: number; invoiceNum
 export async function cancelInvoice(transactionId: number): Promise<void> {
   const path = `/api/sales/${transactionId}/cancel`;
   const url = `${apiBaseUrl()}${path}`;
-  const response = await fetch(url, { method: 'POST' });
+  const response = await authenticatedFetch(url, { method: 'POST' });
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');

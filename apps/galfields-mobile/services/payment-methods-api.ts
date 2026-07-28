@@ -1,5 +1,6 @@
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
+import { authenticatedFetch } from './authenticated-fetch';
 import { appendImagePart, jsonPart } from '@/utils/multipart-form';
 
 interface RemotePaymentMethod {
@@ -53,7 +54,7 @@ async function send(path: string, method: 'POST' | 'PUT', data: PaymentMethodFor
     appendImagePart(formData, 'image', imageUri);
   }
 
-  const response = await fetch(`${apiBaseUrl()}${path}`, { method, body: formData });
+  const response = await authenticatedFetch(`${apiBaseUrl()}${path}`, { method, body: formData });
   await checkResponse(response, method, path);
 
   const result: RemotePaymentMethod = await response.json();
@@ -64,7 +65,7 @@ async function send(path: string, method: 'POST' | 'PUT', data: PaymentMethodFor
 export const paymentMethodsApi = {
   list: async (): Promise<PaymentMethod[]> => {
     const path = '/api/payment-methods';
-    const response = await fetch(`${apiBaseUrl()}${path}`);
+    const response = await authenticatedFetch(`${apiBaseUrl()}${path}`);
     await checkResponse(response, 'GET', path);
     const result: RemotePaymentMethod[] = await response.json();
     return result.map(mapPaymentMethod);
@@ -74,7 +75,7 @@ export const paymentMethodsApi = {
     send(`/api/payment-methods/${id}`, 'PUT', data),
   remove: async (id: number): Promise<void> => {
     const path = `/api/payment-methods/${id}`;
-    const response = await fetch(`${apiBaseUrl()}${path}`, { method: 'DELETE' });
+    const response = await authenticatedFetch(`${apiBaseUrl()}${path}`, { method: 'DELETE' });
     await checkResponse(response, 'DELETE', path);
   },
 };

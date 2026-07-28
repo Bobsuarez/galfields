@@ -43,12 +43,12 @@ pub async fn sync_categories(state: State<'_, AppState>) -> Result<i64, String> 
     const LOC: &str = "catalog_sync::sync_categories";
     logging::step(LOC, "iniciando sincronización de categorías");
 
-    let api_base_url = {
+    let (api_base_url, token) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        http_client::api_base_url(&db)
+        (http_client::api_base_url(&db), crate::auth::auth_token(&db))
     };
 
-    let response = http_client::get(&format!("{}/api/categories", api_base_url)).await?;
+    let response = http_client::get(&format!("{}/api/categories", api_base_url), token.as_deref()).await?;
 
     if !response.is_success() {
         return Err(format!(
@@ -102,12 +102,12 @@ pub async fn sync_payment_methods(
     const LOC: &str = "catalog_sync::sync_payment_methods";
     logging::step(LOC, "iniciando sincronización de métodos de pago");
 
-    let api_base_url = {
+    let (api_base_url, token) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
-        http_client::api_base_url(&db)
+        (http_client::api_base_url(&db), crate::auth::auth_token(&db))
     };
 
-    let response = http_client::get(&format!("{}/api/payment-methods", api_base_url)).await?;
+    let response = http_client::get(&format!("{}/api/payment-methods", api_base_url), token.as_deref()).await?;
 
     if !response.is_success() {
         return Err(format!(

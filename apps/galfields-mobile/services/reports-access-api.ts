@@ -1,5 +1,6 @@
 import { apiBaseUrl } from './api-base-url';
 import { parseApiErrorMessage } from './api-error';
+import { authenticatedFetch } from './authenticated-fetch';
 
 export interface ReportsAccessCode {
   code: string;
@@ -12,7 +13,7 @@ export interface ReportsAccessCode {
  * backend always checks the most recently generated row, see
  * backend/pos's CLAUDE.md, "Reports access code"). */
 export async function generateReportsAccessCode(): Promise<ReportsAccessCode> {
-  const response = await fetch(`${apiBaseUrl()}/api/reports-access-code`, {
+  const response = await authenticatedFetch(`${apiBaseUrl()}/api/reports-access-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
   });

@@ -7,9 +7,13 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
@@ -47,6 +51,16 @@ public class Employee {
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    // Which desktop terminal(s) this employee is allowed to log into (see
+    // AuthService, spec 01-login-empleados-roles) - only meaningful for a
+    // Cajero-type role; an admin logging into mobile never checks this.
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "employee_terminals",
+            joinColumns = @JoinColumn(name = "employee_id"),
+            inverseJoinColumns = @JoinColumn(name = "terminal_id"))
+    private Set<Terminal> terminals = new HashSet<>();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

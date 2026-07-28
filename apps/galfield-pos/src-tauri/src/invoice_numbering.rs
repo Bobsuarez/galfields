@@ -46,7 +46,7 @@ pub async fn sync_invoice_numbering(
 ) -> Result<InvoiceNumberingSyncResult, String> {
     const LOC: &str = "invoice_numbering::sync_invoice_numbering";
 
-    let (api_base_url, terminal_code) = {
+    let (api_base_url, terminal_code, token) = {
         let db = state.db.lock().map_err(|e| e.to_string())?;
         let terminal_code: String = db
             .conn
@@ -56,7 +56,7 @@ pub async fn sync_invoice_numbering(
                 |row| row.get(0),
             )
             .unwrap_or_default();
-        (http_client::api_base_url(&db), terminal_code)
+        (http_client::api_base_url(&db), terminal_code, crate::auth::auth_token(&db))
     };
 
     if terminal_code.trim().is_empty() {
@@ -69,10 +69,10 @@ pub async fn sync_invoice_numbering(
 
     logging::step(LOC, format!("consultando rango asignado a '{terminal_code}'"));
 
-    let response = http_client::get(&format!(
-        "{}/api/invoice-numbering-ranges/by-terminal/{}",
-        api_base_url, terminal_code
-    ))
+    let response = http_client::get(
+        &format!("{}/api/invoice-numbering-ranges/by-terminal/{}", api_base_url, terminal_code),
+        token.as_deref(),
+    )
     .await?;
 
     if response.status == reqwest::StatusCode::NOT_FOUND {
