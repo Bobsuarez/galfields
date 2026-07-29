@@ -74,7 +74,7 @@ There is no repo-wide build/test/lint command — each app is built, linted, and
 ## Skills
 
 - When user interface designs are required, use the frontend-design skill.
-- For the answers, I should always use the full caveman skill
+- For the answers, I should always use the full caveman skill and writing in spanish
 - For complex implementations across multiple projects, the /spec /spec-impl skill should always be used.
 
 

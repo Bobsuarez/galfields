@@ -19,6 +19,7 @@ function envDefault(): string | undefined {
  * app boot, before any screen that might call `apiBaseUrl()` can render. */
 export async function initApiBaseUrl(): Promise<void> {
   const stored = await AsyncStorage.getItem(STORAGE_KEY);
+  console.log('[DEBUG initApiBaseUrl] stored:', stored, '| envDefault:', envDefault());
   cachedBaseUrl = stored || envDefault() || null;
 }
 
@@ -64,6 +65,7 @@ export async function resetApiBaseUrl(): Promise<void> {
  * empty/invalid URL. */
 export function detectLocalBackendUrl(): string | null {
   const hostUri = Constants.expoConfig?.hostUri;
+  console.log('[DEBUG detectLocalBackendUrl] hostUri:', hostUri);
   if (!hostUri) return null;
 
   const host = hostUri.split(':')[0];
