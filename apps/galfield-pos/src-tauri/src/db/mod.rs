@@ -50,6 +50,7 @@ impl Database {
         self.apply_migration("008_invoice_snapshot", include_str!("../../migrations/008_invoice_snapshot.sql"))?;
         self.apply_migration("009_sales_cancellation", include_str!("../../migrations/009_sales_cancellation.sql"))?;
         self.apply_migration("010_employee_session", include_str!("../../migrations/010_employee_session.sql"))?;
+        self.apply_migration("011_product_units", include_str!("../../migrations/011_product_units.sql"))?;
         Ok(())
     }
 

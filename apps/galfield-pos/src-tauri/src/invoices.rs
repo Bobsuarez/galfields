@@ -27,6 +27,52 @@ pub struct CreateSaleResult {
     pub change_due: f64,
 }
 
+/// Converts the sold quantity to base units (`quantity * conversion_factor`)
+/// and decrements every row sharing physical stock with the sold row - just
+/// itself if it was never synced under a cloud variant (`remote_variant_id
+/// IS NULL`, the pre-sale-units shape), or every sibling sharing
+/// `remote_variant_id` otherwise (spec `03-unidades-venta-conversion`, step
+/// 7: "Media"/"Completa" of the same SKU share real stock, so selling one
+/// has to move the other's displayed number too, not just the exact row
+/// sold). Each sibling's own displayed stock moves by
+/// `floor(base units sold / that row's own factor)` - the same conversion
+/// the backend already does at sync time (`ProductService#toUnitResponse`,
+/// see backend/pos's CLAUDE.md) - so they stay roughly consistent with each
+/// other between syncs. SQLite's `/` on two `INTEGER`-affinity operands
+/// floors for positive values (both always are here: quantity > 0,
+/// conversion_factor >= 1), so no explicit `floor()`/`CAST` is needed.
+///
+/// Rounding drift across multiple same-variant lines sold in one sale
+/// (e.g. 1 "Media" + 2 "Completa" in the same ticket) is tolerated on
+/// purpose, not corrected here - the next `sync_products` always overwrites
+/// with the cloud's real number (see this spec's Risks table).
+fn decrement_stock_for_sale(tx: &rusqlite::Transaction, product_id: &str, quantity: i64) -> Result<(), String> {
+    let (remote_variant_id, conversion_factor): (Option<i64>, i64) = tx
+        .query_row(
+            "SELECT remote_variant_id, conversion_factor FROM products WHERE id = ?1",
+            rusqlite::params![product_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let base_units_sold = quantity * conversion_factor;
+
+    match remote_variant_id {
+        Some(variant_id) => tx.execute(
+            "UPDATE products SET stock_quantity = stock_quantity - (?1 / conversion_factor)
+             WHERE remote_variant_id = ?2",
+            rusqlite::params![base_units_sold, variant_id],
+        ),
+        None => tx.execute(
+            "UPDATE products SET stock_quantity = stock_quantity - ?1 WHERE id = ?2",
+            rusqlite::params![quantity as f64, product_id],
+        ),
+    }
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn create_sale(
     state: State<AppState>,
@@ -177,11 +223,7 @@ pub fn create_sale(
         // push (future work, see CLAUDE.md's sync strategy) will eventually
         // report upstream; for now it's what keeps Inventory/POS stock
         // counts honest between catalog syncs.
-        tx.execute(
-            "UPDATE products SET stock_quantity = stock_quantity - ?1 WHERE id = ?2",
-            rusqlite::params![item.quantity as f64, item.product_id],
-        )
-        .map_err(|e| e.to_string())?;
+        decrement_stock_for_sale(&tx, &item.product_id, item.quantity)?;
     }
 
     let created_at: String = tx
@@ -656,4 +698,102 @@ pub fn save_invoice_pdf(
     std::fs::write(&file_path, pdf_bytes).map_err(|e| e.to_string())?;
 
     Ok(file_path.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::Database;
+    use std::path::PathBuf;
+
+    fn temp_db() -> (Database, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("galfield-pos-invoices-test-{}", uuid::Uuid::new_v4()));
+        let db = Database::init(dir.clone()).expect("failed to init temp database");
+        (db, dir)
+    }
+
+    fn cleanup(dir: PathBuf) {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn insert_product(
+        conn: &rusqlite::Connection,
+        name: &str,
+        stock: f64,
+        remote_variant_id: Option<i64>,
+        conversion_factor: i64,
+    ) -> String {
+        conn.execute(
+            "INSERT INTO products (product_name, unit_price, stock_quantity, remote_variant_id, conversion_factor)
+             VALUES (?1, 1000, ?2, ?3, ?4)",
+            rusqlite::params![name, stock, remote_variant_id, conversion_factor],
+        )
+        .expect("insert product");
+        conn.last_insert_rowid().to_string()
+    }
+
+    fn stock_of(conn: &rusqlite::Connection, product_id: &str) -> f64 {
+        conn.query_row(
+            "SELECT stock_quantity FROM products WHERE id = ?1",
+            rusqlite::params![product_id],
+            |r| r.get(0),
+        )
+        .expect("row should exist")
+    }
+
+    #[test]
+    fn decrement_stock_for_sale_with_no_remote_variant_id_only_touches_its_own_row() {
+        let (mut db, dir) = temp_db();
+        let id = insert_product(&db.conn, "Legacy Product", 100.0, None, 1);
+
+        let tx = db.conn.transaction().unwrap();
+        decrement_stock_for_sale(&tx, &id, 3).expect("decrement should succeed");
+        tx.commit().unwrap();
+
+        assert_eq!(stock_of(&db.conn, &id), 97.0);
+        cleanup(dir);
+    }
+
+    /// The scenario the spec's manual test describes: a variant with a base
+    /// unit ("Unidad", factor 1), "Media" (factor 10), and "Completa"
+    /// (factor 20), all sharing `remote_variant_id = 42`. Selling 1
+    /// "Completa" must move all three rows' displayed stock, converted to
+    /// base units and floored per sibling.
+    #[test]
+    fn decrement_stock_for_sale_moves_every_sibling_sharing_remote_variant_id() {
+        let (mut db, dir) = temp_db();
+        let base_id = insert_product(&db.conn, "Cigarrillos - Unidad", 980.0, Some(42), 1);
+        let media_id = insert_product(&db.conn, "Cigarrillos - Media", 98.0, Some(42), 10);
+        let completa_id = insert_product(&db.conn, "Cigarrillos - Completa", 49.0, Some(42), 20);
+
+        let tx = db.conn.transaction().unwrap();
+        decrement_stock_for_sale(&tx, &completa_id, 1).expect("decrement should succeed"); // 1 * 20 = 20 base units
+        tx.commit().unwrap();
+
+        assert_eq!(stock_of(&db.conn, &base_id), 960.0); // 980 - 20/1
+        assert_eq!(stock_of(&db.conn, &media_id), 96.0); // 98 - 20/10
+        assert_eq!(stock_of(&db.conn, &completa_id), 48.0); // 49 - 20/20
+        cleanup(dir);
+    }
+
+    /// Rounding drift is tolerated on purpose (see this spec's Risks table) -
+    /// selling a unit whose base-unit contribution doesn't evenly divide a
+    /// sibling's own factor floors, it doesn't leave that sibling untouched
+    /// or over-correct it.
+    #[test]
+    fn decrement_stock_for_sale_floors_the_sibling_conversion_instead_of_rounding() {
+        let (mut db, dir) = temp_db();
+        let base_id = insert_product(&db.conn, "Cigarrillos - Unidad", 100.0, Some(7), 1);
+        let media_id = insert_product(&db.conn, "Cigarrillos - Media", 10.0, Some(7), 10);
+        let completa_id = insert_product(&db.conn, "Cigarrillos - Completa", 5.0, Some(7), 20);
+
+        let tx = db.conn.transaction().unwrap();
+        decrement_stock_for_sale(&tx, &media_id, 1).expect("decrement should succeed"); // 1 * 10 = 10 base units
+        tx.commit().unwrap();
+
+        assert_eq!(stock_of(&db.conn, &base_id), 90.0); // 100 - 10/1
+        assert_eq!(stock_of(&db.conn, &media_id), 9.0); // 10 - 10/10
+        assert_eq!(stock_of(&db.conn, &completa_id), 5.0); // 5 - floor(10/20) = 5 - 0
+        cleanup(dir);
+    }
 }

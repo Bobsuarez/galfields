@@ -13,6 +13,7 @@ export default function ProductsLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="add" />
       <Stack.Screen name="[id]/edit" />
+      <Stack.Screen name="[id]/units/[variantId]" />
       <Stack.Screen name="success" options={{ gestureEnabled: false }} />
     </Stack>
   );

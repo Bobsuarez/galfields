@@ -1,12 +1,34 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import type { Product } from '../../../types'
-import { useProductCatalog } from '../composables/useProductCatalog'
+import { useProductCatalog, type ProductGroup } from '../composables/useProductCatalog'
 import ProductCard from './ProductCard.vue'
+import UnitPickerModal from './UnitPickerModal.vue'
 import AppIcon from '../../../components/shared/AppIcon.vue'
 
 const emit = defineEmits<{ (e: 'product-added', product: Product): void }>()
 
-const { categories, activeCategory, searchQuery, filteredProducts, isLoading, selectCategory, loadProducts } = useProductCatalog()
+const { categories, activeCategory, searchQuery, groupedProducts, isLoading, selectCategory, loadProducts } = useProductCatalog()
+
+// A group with a single sale unit adds directly (today's behavior,
+// unchanged); more than one opens this picker instead (spec
+// 03-unidades-venta-conversion, step 6) - "cero fricción visual para la
+// mayoría de productos" from the spec's Decisions, since the common
+// single-unit case never sees this modal at all.
+const pickerGroup = ref<ProductGroup | null>(null)
+
+function handleGroupAdd(group: ProductGroup) {
+  if (group.units.length <= 1) {
+    emit('product-added', group.display)
+    return
+  }
+  pickerGroup.value = group
+}
+
+function handlePickerSelect(product: Product) {
+  pickerGroup.value = null
+  emit('product-added', product)
+}
 
 // Exposed so POSView can re-fetch stock/active-state right after checkout,
 // since useProducts() only loads once on mount otherwise (see CLAUDE.md).
@@ -53,22 +75,31 @@ defineExpose({ reload: loadProducts })
         </template>
         <template v-else>
           <ProductCard
-            v-for="product in filteredProducts"
-            :key="product.id"
-            :product="product"
-            @add="emit('product-added', $event)"
+            v-for="group in groupedProducts"
+            :key="group.key"
+            :product="group.display"
+            :unit-count="group.units.length"
+            @add="handleGroupAdd(group)"
           />
-          <div v-if="filteredProducts.length === 0 && searchQuery" class="empty-state">
+          <div v-if="groupedProducts.length === 0 && searchQuery" class="empty-state">
             <span style="font-size: 32px">🔍</span>
             <p>Sin resultados para "{{ searchQuery }}"</p>
           </div>
-          <div v-else-if="filteredProducts.length === 0" class="empty-state">
+          <div v-else-if="groupedProducts.length === 0" class="empty-state">
             <span style="font-size: 32px">📦</span>
             <p>Aún no hay productos sincronizados. Ve a Sincronización para descargar el catálogo.</p>
           </div>
         </template>
       </div>
     </div>
+
+    <UnitPickerModal
+      :visible="!!pickerGroup"
+      :product-name="pickerGroup?.display.productName ?? ''"
+      :units="pickerGroup?.units ?? []"
+      @select="handlePickerSelect"
+      @cancel="pickerGroup = null"
+    />
   </section>
 </template>
 

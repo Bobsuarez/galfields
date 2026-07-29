@@ -11,6 +11,7 @@ import co.com.galfields.pos.entity.Location;
 import co.com.galfields.pos.entity.Payment;
 import co.com.galfields.pos.entity.PaymentMethod;
 import co.com.galfields.pos.entity.PaymentStatus;
+import co.com.galfields.pos.entity.ProductUnit;
 import co.com.galfields.pos.entity.ProductVariant;
 import co.com.galfields.pos.entity.SaleItem;
 import co.com.galfields.pos.entity.SalesTransaction;
@@ -20,11 +21,14 @@ import co.com.galfields.pos.repository.EmployeeRepository;
 import co.com.galfields.pos.repository.LocationRepository;
 import co.com.galfields.pos.repository.PaymentMethodRepository;
 import co.com.galfields.pos.repository.PaymentRepository;
+import co.com.galfields.pos.repository.ProductUnitRepository;
 import co.com.galfields.pos.repository.ProductVariantRepository;
 import co.com.galfields.pos.repository.SaleItemRepository;
 import co.com.galfields.pos.repository.SalesTransactionRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,6 +65,7 @@ public class SalesService {
     private final EmployeeRepository employeeRepository;
     private final LocationRepository locationRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final ProductUnitRepository productUnitRepository;
     private final PaymentMethodRepository paymentMethodRepository;
     private final InventoryService inventoryService;
 
@@ -85,9 +90,27 @@ public class SalesService {
         transaction.setInvoiceNumber(request.invoiceNumber());
         salesTransactionRepository.save(transaction);
 
+        List<StockAdjustmentItemRequest> stockItems = new ArrayList<>();
+
         for (SaleLineRequest line : request.items()) {
             ProductVariant variant = productVariantRepository.findById(line.variantId())
                     .orElseThrow(() -> new ResourceNotFoundException("Variant " + line.variantId() + " not found"));
+
+            // productUnitId is optional - a line with none (legacy terminals, or a
+            // variant with no configured units yet) sells at the base unit, same
+            // behavior as before this feature existed (see SaleItem's column
+            // defaults and V10__product_units.sql's Risks note).
+            ProductUnit productUnit = null;
+            String unitName = "Unidad";
+            int conversionFactor = 1;
+            if (line.productUnitId() != null) {
+                productUnit = productUnitRepository.findByProductUnitIdAndVariant_VariantId(
+                                line.productUnitId(), line.variantId())
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "Product unit " + line.productUnitId() + " not found for variant " + line.variantId()));
+                unitName = productUnit.getUnitName();
+                conversionFactor = productUnit.getConversionFactor();
+            }
 
             SaleItem saleItem = new SaleItem();
             saleItem.setTransaction(transaction);
@@ -95,7 +118,12 @@ public class SalesService {
             saleItem.setQuantity(line.quantity());
             saleItem.setUnitPrice(line.unitPrice());
             saleItem.setSubtotal(line.subtotal());
+            saleItem.setProductUnit(productUnit);
+            saleItem.setUnitName(unitName);
+            saleItem.setConversionFactor(conversionFactor);
             saleItemRepository.save(saleItem);
+
+            stockItems.add(new StockAdjustmentItemRequest(line.variantId(), -line.quantity() * conversionFactor));
         }
 
         for (SalePaymentRequest p : request.payments()) {
@@ -112,10 +140,8 @@ public class SalesService {
 
         // Same clientEventId as the sale itself - reuses the exact idempotent
         // stock-decrement logic /api/inventory/adjustments already has,
-        // instead of duplicating it here.
-        var stockItems = request.items().stream()
-                .map(line -> new StockAdjustmentItemRequest(line.variantId(), -line.quantity()))
-                .toList();
+        // instead of duplicating it here. Deltas were already converted to
+        // base units (quantity * conversionFactor) in the loop above.
         inventoryService.applyAdjustments(new StockAdjustmentBatchRequest(request.clientEventId(), stockItems));
 
         return new SaleResponse(transaction.getTransactionId(), request.clientEventId(), false);
@@ -150,8 +176,11 @@ public class SalesService {
         // sale: stock_adjustments' idempotency key is (clientEventId,
         // variantId), so reusing the same one would look "already
         // processed" and the reversal would silently never apply.
+        // quantity is "how many of the sold unit" (e.g. 2 "Media") - reverse in
+        // base units the same way recordSale applied the decrement.
         var reversalItems = saleItemRepository.findByTransaction_TransactionId(transaction.getTransactionId()).stream()
-                .map(item -> new StockAdjustmentItemRequest(item.getVariant().getVariantId(), item.getQuantity()))
+                .map(item -> new StockAdjustmentItemRequest(
+                        item.getVariant().getVariantId(), item.getQuantity() * item.getConversionFactor()))
                 .toList();
         inventoryService.applyAdjustments(
                 new StockAdjustmentBatchRequest("cancel-" + transaction.getClientEventId(), reversalItems));

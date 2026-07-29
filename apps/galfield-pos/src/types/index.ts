@@ -24,6 +24,15 @@ export interface Product {
   lastSyncAt: string | null
   createdAt: string
   updatedAt: string
+  /** Groups sibling rows sharing the same physical stock (e.g.
+   * "Media"/"Completa" of the same SKU) — see sync.rs's "Sale units" notes.
+   * `null` for a row never synced under a cloud variant at all. */
+  remoteVariantId: number | null
+  /** This row's own cloud sale-unit id, if it corresponds to one — `null`
+   * for the no-units-yet fallback shape. */
+  remoteProductUnitId: number | null
+  unitName: string
+  conversionFactor: number
 }
 
 export interface CartItem {

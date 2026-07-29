@@ -2,6 +2,7 @@ package co.com.galfields.pos.service;
 
 import co.com.galfields.pos.dto.ProductRequest;
 import co.com.galfields.pos.dto.ProductResponse;
+import co.com.galfields.pos.dto.ProductUnitResponse;
 import co.com.galfields.pos.dto.ProductVariantRequest;
 import co.com.galfields.pos.dto.ProductVariantResponse;
 import co.com.galfields.pos.dto.VariantAttributeRequest;
@@ -13,6 +14,7 @@ import co.com.galfields.pos.entity.Inventory;
 import co.com.galfields.pos.entity.Location;
 import co.com.galfields.pos.entity.Product;
 import co.com.galfields.pos.entity.ProductImage;
+import co.com.galfields.pos.entity.ProductUnit;
 import co.com.galfields.pos.entity.ProductVariant;
 import co.com.galfields.pos.entity.ProductVariantImage;
 import co.com.galfields.pos.entity.VariantAttribute;
@@ -24,6 +26,7 @@ import co.com.galfields.pos.repository.CategoryRepository;
 import co.com.galfields.pos.repository.InventoryRepository;
 import co.com.galfields.pos.repository.LocationRepository;
 import co.com.galfields.pos.repository.ProductRepository;
+import co.com.galfields.pos.repository.ProductUnitRepository;
 import co.com.galfields.pos.repository.ProductVariantRepository;
 import co.com.galfields.pos.util.CompressedImage;
 import co.com.galfields.pos.util.ImageCompressor;
@@ -416,16 +419,40 @@ public class ProductService {
                 .map(a -> new VariantAttributeResponse(a.getAttributeName(), a.getAttributeValue()))
                 .toList();
 
+        int variantStock = stockOf(variant);
+        List<ProductUnitResponse> units = variant.getUnits()
+                .stream()
+                .map(u -> toUnitResponse(u, variantStock))
+                .toList();
+
         return new ProductVariantResponse(
                 variant.getVariantId(),
                 variant.getSku(),
                 variant.getBarcode(),
                 variant.getPrice(),
                 variant.getCostPrice(),
-                stockOf(variant),
+                variantStock,
                 imageUrl,
                 variant.isActive(),
-                attributes
+                attributes,
+                units
+        );
+    }
+
+    /** unitStock is the variant's own base stock converted to "how many of
+     * this presentation are available" (e.g. 47 base units at factor 20 ->
+     * 2 "Completa" available) - floorDiv, not truncating division, matches
+     * this spec's Data model note even for a negative (oversold) base stock. */
+    private ProductUnitResponse toUnitResponse(ProductUnit unit, int variantStock) {
+        return new ProductUnitResponse(
+                unit.getProductUnitId(),
+                unit.getUnitName(),
+                unit.getConversionFactor(),
+                unit.getUnitPrice(),
+                Math.floorDiv(variantStock, unit.getConversionFactor()),
+                unit.getBarcode(),
+                unit.isBase(),
+                unit.isActive()
         );
     }
 }

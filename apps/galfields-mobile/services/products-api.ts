@@ -9,6 +9,23 @@ export interface RemoteVariantAttribute {
   value: string;
 }
 
+/** A sale unit for a variant (e.g. "Media"/"Completa" cajetilla of the same
+ * SKU, sharing its stock) - see backend/pos's CLAUDE.md, "Sale units with
+ * conversion factors". Managed via services/product-units-api.ts; only
+ * read here as part of the nested GET /api/products response. */
+export interface RemoteProductUnit {
+  productUnitId: number;
+  unitName: string;
+  conversionFactor: number;
+  unitPrice: number;
+  /** The variant's own stock converted to "how many of this presentation
+   * are available" (backend does the floor(base ÷ factor) math). */
+  stock: number;
+  barcode: string | null;
+  isBase: boolean;
+  active: boolean;
+}
+
 export interface RemoteVariant {
   variantId: number;
   sku: string;
@@ -19,6 +36,7 @@ export interface RemoteVariant {
   imageUrl: string | null;
   active: boolean;
   attributes: RemoteVariantAttribute[];
+  units: RemoteProductUnit[];
 }
 
 export interface RemoteProduct {
@@ -66,6 +84,7 @@ export function toVariantDraft(variant: RemoteVariant): ProductVariantDraft {
     attributes: variant.attributes,
     imageUri: variant.imageUrl ?? undefined,
     originalSku: variant.sku,
+    variantId: variant.variantId,
   };
 }
 

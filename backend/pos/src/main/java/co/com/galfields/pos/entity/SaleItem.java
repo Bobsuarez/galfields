@@ -43,4 +43,14 @@ public class SaleItem {
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal subtotal;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_unit_id")
+    private ProductUnit productUnit;
+
+    @Column(name = "unit_name", nullable = false, length = 50)
+    private String unitName = "Unidad";
+
+    @Column(name = "conversion_factor", nullable = false)
+    private Integer conversionFactor = 1;
 }

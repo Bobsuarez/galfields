@@ -26,6 +26,10 @@ interface VariantFormCardProps {
   onChange: (next: ProductVariantDraft) => void;
   onRemove: () => void;
   onScanBarcode: () => void;
+  /** Only called for a variant that already exists on the backend
+   * (`value.variantId` set) - a brand-new, unsaved variant draft has no
+   * variantId yet, so "Unidades de venta" doesn't apply until it's saved. */
+  onManageUnits?: () => void;
 }
 
 export function VariantFormCard({
@@ -37,6 +41,7 @@ export function VariantFormCard({
   onChange,
   onRemove,
   onScanBarcode,
+  onManageUnits,
 }: VariantFormCardProps) {
   const { processing, pick, pickFromUrl, clear } = useImagePicker(imageUri =>
     onChange({ ...value, imageUri: imageUri ?? undefined }),
@@ -134,6 +139,13 @@ export function VariantFormCard({
         error={errors?.attributes}
         onChange={attributes => onChange({ ...value, attributes })}
       />
+
+      {value.variantId && onManageUnits ? (
+        <Pressable onPress={onManageUnits} style={styles.unitsBtn}>
+          <IconSymbol name="square.stack.3d.up.fill" size={18} color={Brand.orange} />
+          <Text style={styles.unitsBtnText}>Unidades de venta</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -168,4 +180,17 @@ const styles = StyleSheet.create({
   scanBtnPressed: { opacity: 0.75 },
   priceRow: { flexDirection: 'row', gap: 12 },
   priceField: { flex: 1 },
+  unitsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderColor: Brand.orange,
+    borderStyle: 'dashed',
+    borderRadius: 10,
+  },
+  unitsBtnText: { fontSize: 13, fontWeight: '600', color: Brand.orange },
 });

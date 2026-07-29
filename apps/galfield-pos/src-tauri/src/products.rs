@@ -29,6 +29,17 @@ pub struct ProductRow {
     pub last_sync_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    /// Groups sibling rows that share the same physical stock (e.g.
+    /// "Media"/"Completa" of the same SKU) - see sync.rs's "Sale units"
+    /// notes and this app's CLAUDE.md. `None` for a row that's never been
+    /// synced under a cloud variant at all.
+    pub remote_variant_id: Option<i64>,
+    /// This row's own cloud sale-unit id, if it corresponds to one (see
+    /// migration `011_product_units.sql`) - `None` for the no-units-yet
+    /// fallback shape (see sync.rs's `flatten`).
+    pub remote_product_unit_id: Option<i64>,
+    pub unit_name: String,
+    pub conversion_factor: i64,
 }
 
 /// All local products (synced from the cloud catalog via `sync_products`, or
@@ -42,7 +53,8 @@ pub fn get_products(state: State<AppState>) -> Result<Vec<ProductRow>, String> {
         .conn
         .prepare(
             "SELECT id, barcode, product_name, unit_price, category, is_active,
-                    image_path, image_hash, stock_quantity, last_sync_at, created_at, updated_at
+                    image_path, image_hash, stock_quantity, last_sync_at, created_at, updated_at,
+                    remote_variant_id, remote_product_unit_id, unit_name, conversion_factor
              FROM products
              ORDER BY product_name ASC",
         )
@@ -65,6 +77,10 @@ pub fn get_products(state: State<AppState>) -> Result<Vec<ProductRow>, String> {
                 last_sync_at: row.get(9)?,
                 created_at: row.get(10)?,
                 updated_at: row.get(11)?,
+                remote_variant_id: row.get(12)?,
+                remote_product_unit_id: row.get(13)?,
+                unit_name: row.get(14)?,
+                conversion_factor: row.get(15)?,
             })
         })
         .map_err(|e| e.to_string())?;

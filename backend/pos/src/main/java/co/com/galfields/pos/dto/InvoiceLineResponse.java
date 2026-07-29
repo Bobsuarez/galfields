@@ -7,5 +7,7 @@ public record InvoiceLineResponse(
         String sku,
         int quantity,
         BigDecimal unitPrice,
-        BigDecimal subtotal) {
+        BigDecimal subtotal,
+        String unitName,
+        int conversionFactor) {
 }

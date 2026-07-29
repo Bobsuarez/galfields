@@ -122,6 +122,10 @@ pub struct ScannedProduct {
     pub last_sync_at:   Option<String>,
     pub created_at:     String,
     pub updated_at:     String,
+    pub remote_variant_id:      Option<i64>,
+    pub remote_product_unit_id: Option<i64>,
+    pub unit_name:              String,
+    pub conversion_factor:      i64,
 }
 
 #[derive(Serialize, Clone)]
@@ -147,7 +151,8 @@ fn find_product_by_barcode(
         "SELECT CAST(id AS TEXT), barcode, product_name, unit_price,
                 COALESCE(category, ''), is_active,
                 image_path, image_hash, stock_quantity,
-                last_sync_at, created_at, updated_at
+                last_sync_at, created_at, updated_at,
+                remote_variant_id, remote_product_unit_id, unit_name, conversion_factor
          FROM   products
          WHERE  barcode = ?1 AND is_active = 1
          LIMIT  1",
@@ -167,6 +172,10 @@ fn find_product_by_barcode(
             last_sync_at:   row.get(9)?,
             created_at:     row.get(10)?,
             updated_at:     row.get(11)?,
+            remote_variant_id:      row.get(12)?,
+            remote_product_unit_id: row.get(13)?,
+            unit_name:              row.get(14)?,
+            conversion_factor:      row.get(15)?,
         })
     })?;
 

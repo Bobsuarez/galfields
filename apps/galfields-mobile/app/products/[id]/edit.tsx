@@ -332,6 +332,15 @@ export default function EditProductScreen() {
             onChange={next => updateVariant(index, next)}
             onRemove={() => removeVariant(index)}
             onScanBarcode={() => setScanningIndex(index)}
+            onManageUnits={
+              variant.variantId
+                ? () =>
+                    router.push({
+                      pathname: '/products/[id]/units/[variantId]',
+                      params: { id, variantId: String(variant.variantId) },
+                    })
+                : undefined
+            }
           />
         ))}
 

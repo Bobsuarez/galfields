@@ -12,5 +12,6 @@ public record ProductVariantResponse(
         Integer stock,
         String imageUrl,
         boolean active,
-        List<VariantAttributeResponse> attributes) {
+        List<VariantAttributeResponse> attributes,
+        List<ProductUnitResponse> units) {
 }

@@ -39,6 +39,9 @@ public class ProductVariant {
     @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<VariantAttribute> attributes = new ArrayList<>();
 
+    @OneToMany(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ProductUnit> units = new ArrayList<>();
+
     @OneToOne(mappedBy = "variant", cascade = CascadeType.ALL, orphanRemoval = true)
     private ProductVariantImage image;
 

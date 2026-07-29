@@ -2,8 +2,9 @@
 import { computed, ref } from 'vue'
 import type { Product } from '../../../types'
 import { formatCurrency } from '../../../utils/currency'
+import { productUnavailableReason } from '../../../utils/stock'
 
-const props = defineProps<{ product: Product }>()
+const props = defineProps<{ product: Product; unitCount?: number }>()
 const emit = defineEmits<{ (e: 'add', product: Product): void }>()
 
 // Falls back to the category emoji if there's no synced image, or if the
@@ -19,14 +20,7 @@ function handleImageError() {
   imageFailed.value = true
 }
 
-// Deactivation always wins over a stock badge - it's a different, more
-// fundamental reason the product can't be sold. Mirrors the precedence
-// InventoryTable.vue/ProductDetail.vue already use.
-const unavailableReason = computed(() => {
-  if (!props.product.isActive) return 'Desactivado'
-  if (props.product.stockQuantity <= 0) return 'Sin stock'
-  return null
-})
+const unavailableReason = computed(() => productUnavailableReason(props.product))
 
 function handleAdd() {
   if (unavailableReason.value) return
@@ -81,6 +75,11 @@ function categoryEmoji(category: string): string {
         <span class="product-emoji">{{ categoryEmoji(product.category) }}</span>
       </div>
       <span v-if="!unavailableReason && product.stockQuantity <= 5" class="stock-badge">¡Poco!</span>
+      <!-- Only shown for a product with more than one sale unit (e.g.
+           "Media"/"Completa") - tapping opens a picker instead of adding
+           directly, see ProductCatalog.vue. A single-unit product (the
+           common case) shows nothing extra, no visual change. -->
+      <span v-if="unitCount && unitCount > 1" class="units-badge">{{ unitCount }} opciones</span>
     </div>
 
     <div class="product-info">
@@ -88,7 +87,9 @@ function categoryEmoji(category: string): string {
       <p class="product-price">{{ formatCurrency(product.unitPrice) }}</p>
     </div>
 
-    <button class="add-btn" :disabled="!!unavailableReason" @click.stop="handleAdd">Agregar</button>
+    <button class="add-btn" :disabled="!!unavailableReason" @click.stop="handleAdd">
+      {{ unitCount && unitCount > 1 ? 'Elegir' : 'Agregar' }}
+    </button>
 
     <div v-if="unavailableReason" class="unavailable-badge">{{ unavailableReason }}</div>
   </div>
@@ -199,6 +200,19 @@ function categoryEmoji(category: string): string {
   font-size: 9px;
   font-weight: 700;
   padding: 2px 5px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.units-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--color-primary);
+  color: #0D0D0D;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
   border-radius: 4px;
   text-transform: uppercase;
 }

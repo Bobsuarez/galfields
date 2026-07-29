@@ -10,6 +10,13 @@ use crate::AppState;
 #[serde(rename_all = "camelCase")]
 struct SaleItemPayload {
     variant_id: i64,
+    /// Which sale unit was actually sold (spec `03-unidades-venta-conversion`,
+    /// step 8) - `None` for a line whose local row has no
+    /// `remote_product_unit_id` yet (a variant with no units configured, or
+    /// a row that predates migration `011_product_units.sql`). Optional on
+    /// the backend's `SaleLineRequest` too: a `null` here reports at the
+    /// base unit, same behavior as before this feature existed.
+    product_unit_id: Option<i64>,
     quantity: i64,
     unit_price: f64,
     subtotal: f64,
@@ -59,6 +66,11 @@ struct PendingSaleItem {
     /// `None` when the local product predates `sync.rs`'s remote-linking
     /// migration - see the "unreportable" check in `push_pending_sales`.
     remote_variant_id: Option<i64>,
+    /// `None` when the local product has no linked cloud sale unit (a
+    /// variant with none configured yet, or a row that predates migration
+    /// `011_product_units.sql`) - unlike `remote_variant_id`, this does NOT
+    /// block reporting the sale (see `SaleItemPayload`).
+    remote_product_unit_id: Option<i64>,
     quantity: i64,
     unit_price: f64,
     subtotal: f64,
@@ -127,7 +139,7 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
     let mut items_stmt = db
         .conn
         .prepare(
-            "SELECT p.remote_variant_id, si.quantity, si.unit_price, si.subtotal
+            "SELECT p.remote_variant_id, p.remote_product_unit_id, si.quantity, si.unit_price, si.subtotal
              FROM sale_items si
              JOIN products p ON p.id = si.product_id
              WHERE si.sale_id = ?1",
@@ -140,9 +152,10 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
             .query_map(rusqlite::params![sale_id], |row| {
                 Ok(PendingSaleItem {
                     remote_variant_id: row.get(0)?,
-                    quantity: row.get(1)?,
-                    unit_price: row.get(2)?,
-                    subtotal: row.get(3)?,
+                    remote_product_unit_id: row.get(1)?,
+                    quantity: row.get(2)?,
+                    unit_price: row.get(3)?,
+                    subtotal: row.get(4)?,
                 })
             })
             .map_err(|e| e.to_string())?
@@ -229,6 +242,7 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
                 .iter()
                 .map(|item| SaleItemPayload {
                     variant_id: item.remote_variant_id.expect("checked above"),
+                    product_unit_id: item.remote_product_unit_id,
                     quantity: item.quantity,
                     unit_price: item.unit_price,
                     subtotal: item.subtotal,

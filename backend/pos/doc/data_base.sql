@@ -200,6 +200,24 @@ CREATE TABLE product_variants_images
     create_at        timestamp DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Sale units with conversion factors (migration V10__product_units.sql,
+-- spec 03-unidades-venta-conversion): a variant can be sold under multiple
+-- presentations sharing the same physical stock (e.g. "Media"/"Completa"
+-- cajetilla of the same SKU).
+CREATE TABLE product_units
+(
+    product_unit_id   BIGSERIAL PRIMARY KEY,
+    variant_id        BIGINT         NOT NULL REFERENCES product_variants (variant_id),
+    unit_name         VARCHAR(50)    NOT NULL,
+    conversion_factor INTEGER        NOT NULL CHECK (conversion_factor >= 1),
+    unit_price        DECIMAL(15, 2) NOT NULL,
+    barcode           VARCHAR(100) UNIQUE,
+    is_base           BOOLEAN        NOT NULL DEFAULT FALSE,
+    is_active         BOOLEAN        NOT NULL DEFAULT TRUE,
+    created_at        TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX uq_product_units_base ON product_units (variant_id) WHERE is_base; -- una unidad base por variante
+
 -- 4. Inventario por ubicación
 CREATE TABLE inventory
 (
@@ -260,7 +278,12 @@ CREATE TABLE sale_items
     quantity          INT            NOT NULL,
     unit_price        DECIMAL(15, 2) NOT NULL,
     discount_per_item DECIMAL(15, 2) DEFAULT 0,
-    subtotal          DECIMAL(15, 2) NOT NULL
+    subtotal          DECIMAL(15, 2) NOT NULL,
+    -- Snapshot of which sale unit was sold (migration V10__product_units.sql) -
+    -- variant_id above still identifies the physical stock row.
+    product_unit_id   BIGINT REFERENCES product_units (product_unit_id),
+    unit_name         VARCHAR(50) NOT NULL DEFAULT 'Unidad',
+    conversion_factor INTEGER     NOT NULL DEFAULT 1
 );
 
 CREATE TABLE payments

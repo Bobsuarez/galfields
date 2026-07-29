@@ -64,6 +64,8 @@ const MAPPING = {
   'desktopcomputer': 'computer',
   // Employee roles (spec 01-login-empleados-roles)
   'shield.fill': 'security',
+  // Sale units (spec 03-unidades-venta-conversion)
+  'square.stack.3d.up.fill': 'layers',
 } as IconMapping;
 
 /**

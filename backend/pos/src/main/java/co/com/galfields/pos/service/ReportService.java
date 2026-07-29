@@ -77,7 +77,9 @@ public class ReportService {
                         item.getVariant().getSku(),
                         item.getQuantity(),
                         item.getUnitPrice(),
-                        item.getSubtotal()))
+                        item.getSubtotal(),
+                        item.getUnitName(),
+                        item.getConversionFactor()))
                 .toList();
 
         List<InvoicePaymentResponse> payments = paymentRepository.findByTransaction_TransactionId(transactionId).stream()

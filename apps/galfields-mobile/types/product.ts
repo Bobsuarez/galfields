@@ -19,6 +19,11 @@ export interface ProductVariantDraft {
   attributes: ProductVariantAttribute[];
   imageUri?: string;
   originalSku?: string;
+  /** Real backend id, only present for a variant that already exists (not a
+   * newly-added, unsaved draft) — used to link out to "Unidades de venta"
+   * (see app/products/[id]/units/[variantId].tsx), which needs a real
+   * variantId to operate against. */
+  variantId?: number;
 }
 
 export function createEmptyVariantDraft(): ProductVariantDraft {

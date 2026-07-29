@@ -72,11 +72,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**", "/api/payment-methods/**")
                         .hasAnyAuthority(ADMIN, PERM_SYNC)
                         .requestMatchers(HttpMethod.POST, "/api/products/**", "/api/categories/**", "/api/brands/**",
-                                "/api/locations/**", "/api/payment-methods/**").hasAuthority(ADMIN)
+                                "/api/locations/**", "/api/payment-methods/**", "/api/product-variants/**").hasAuthority(ADMIN)
                         .requestMatchers(HttpMethod.PUT, "/api/products/**", "/api/categories/**", "/api/brands/**",
-                                "/api/locations/**", "/api/payment-methods/**").hasAuthority(ADMIN)
+                                "/api/locations/**", "/api/payment-methods/**", "/api/product-variants/**").hasAuthority(ADMIN)
                         .requestMatchers(HttpMethod.DELETE, "/api/products/**", "/api/categories/**", "/api/brands/**",
-                                "/api/locations/**", "/api/payment-methods/**").hasAuthority(ADMIN)
+                                "/api/locations/**", "/api/payment-methods/**", "/api/product-variants/**").hasAuthority(ADMIN)
 
                         .requestMatchers(HttpMethod.POST, "/api/inventory/adjustments").hasAuthority(ADMIN)
                         .requestMatchers(HttpMethod.GET, "/api/reports/inventory", "/api/reports/low-stock").hasAuthority(ADMIN)
