@@ -27,6 +27,24 @@ export function useImagePicker(onChange: (uri: string | null) => void) {
   const [processing, setProcessing] = useState(false);
 
   const pick = async (source: 'camera' | 'gallery') => {
+    // launchCameraAsync/launchImageLibraryAsync don't request permission
+    // themselves (unlike expo-camera's CameraView) - without this, they
+    // reject outright with "Missing camera or camera roll permission"
+    // instead of ever showing the OS prompt.
+    if (source === 'camera') {
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para tomar fotos de productos.');
+        return;
+      }
+    } else {
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para seleccionar imágenes de productos.');
+        return;
+      }
+    }
+
     const result =
       source === 'camera'
         ? await ImagePicker.launchCameraAsync({

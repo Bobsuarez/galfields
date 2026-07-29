@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 /**
@@ -9,6 +10,24 @@ import * as ImagePicker from 'expo-image-picker';
  */
 export function usePlainImagePicker(onChange: (uri: string | null) => void) {
   const pick = async (source: 'camera' | 'gallery') => {
+    // launchCameraAsync/launchImageLibraryAsync don't request permission
+    // themselves (unlike expo-camera's CameraView) - without this, they
+    // reject outright with "Missing camera or camera roll permission"
+    // instead of ever showing the OS prompt.
+    if (source === 'camera') {
+      const { granted } = await ImagePicker.requestCameraPermissionsAsync();
+      if (!granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para tomar fotos.');
+        return;
+      }
+    } else {
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para seleccionar una imagen.');
+        return;
+      }
+    }
+
     const result =
       source === 'camera'
         ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85, allowsEditing: false })
