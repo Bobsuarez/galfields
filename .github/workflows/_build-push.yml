@@ -7,8 +7,8 @@
 #       uses: ./.github/workflows/_build-push.yml
 #       with:
 #         service: pos-backend
-#         dockerfile: backend/pos/Dockerfile
-#         context: backend/pos
+#         dockerfile: backend/pos_transactions/Dockerfile
+#         context: backend/pos_transactions
 #       secrets: inherit
 
 name: '[Reusable] Build & Push to GHCR'

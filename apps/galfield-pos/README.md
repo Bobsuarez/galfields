@@ -1,6 +1,6 @@
 # galfield-pos
 
-Terminal de punto de venta de escritorio — Tauri 2 + Vue 3, con una base SQLite local. Trabaja offline-first: vende sin internet, sincroniza el catálogo bajo demanda contra [`backend/pos`](../../backend/pos) y reporta cada venta de vuelta a la nube en segundo plano apenas hay conexión.
+Terminal de punto de venta de escritorio — Tauri 2 + Vue 3, con una base SQLite local. Trabaja offline-first: vende sin internet, sincroniza el catálogo bajo demanda contra [`backend/pos_transactions`](../../backend/pos_transactions) y reporta cada venta de vuelta a la nube en segundo plano apenas hay conexión.
 
 ## Stack
 
@@ -30,7 +30,7 @@ cd src-tauri && cargo check   # chequeo rápido de compilación
 
 ## Primer arranque
 
-La base de datos local empieza vacía. Antes de poder vender hay que sincronizar el catálogo al menos una vez desde **Sincronización** en la app (trae productos, categorías, marcas, ubicaciones y métodos de pago desde `backend/pos`).
+La base de datos local empieza vacía. Antes de poder vender hay que sincronizar el catálogo al menos una vez desde **Sincronización** en la app (trae productos, categorías, marcas, ubicaciones y métodos de pago desde `backend/pos_transactions`).
 
 ## Funcionalidades
 

@@ -1,0 +1,14 @@
+dependencies {
+    implementation project(':model')
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.reactivecommons.utils:object-mapper-api:0.1.0'
+    // Jackson 3 (tools.jackson.*), not classic com.fasterxml.jackson.* — Spring
+    // Boot 4.1's JacksonAutoConfiguration only registers a
+    // tools.jackson.databind.json.JsonMapper bean, see backend/pos/CLAUDE.md's
+    // "Local infra" gotcha writeup. Needed for employee_roles.permissions
+    // JSON <-> Map<String,Boolean> conversion in EmployeeRoleRepositoryAdapter.
+    implementation 'tools.jackson.core:jackson-databind'
+
+    testImplementation 'org.reactivecommons.utils:object-mapper:0.1.0'
+}

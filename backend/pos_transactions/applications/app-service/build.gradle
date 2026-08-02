@@ -1,0 +1,39 @@
+apply plugin: 'org.springframework.boot'
+
+dependencies {
+	implementation project(':jpa-repository')
+	implementation project(':minio-storage')
+	implementation project(':security')
+	implementation 'org.reactivecommons.utils:object-mapper:0.1.0'
+	testImplementation 'org.springframework:spring-web'
+	implementation project(':api-rest')
+    implementation project(':model')
+    implementation project(':usecase')
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+    implementation 'org.springframework.boot:spring-boot-flyway'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly('org.springframework.boot:spring-boot-devtools')
+    testImplementation 'com.tngtech.archunit:archunit:1.4.1'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind'
+}
+
+tasks.register('explodedJar', Copy) {
+    with jar
+    into layout.buildDirectory.dir("exploded")
+}
+
+jar {
+    // To disable the *-plain.jar
+    enabled = false
+}
+
+bootJar {
+    // Sets output jar name
+    archiveFileName = "${project.getParent().getName()}.${archiveExtension.get()}"
+}

@@ -6,7 +6,7 @@ Sistema de punto de venta para Galfields: catálogo, inventario, ventas y report
 
 | | Qué es | Stack | Documentación |
 |---|---|---|---|
-| [`backend/pos`](backend/pos) | API en la nube — fuente de verdad de catálogo, inventario, ventas y reportes | Spring Boot 4 · Java 21 · PostgreSQL · MinIO | [README](backend/pos/README.md) · [CLAUDE.md](backend/pos/CLAUDE.md) |
+| [`backend/pos_transactions`](backend/pos_transactions) | API en la nube — fuente de verdad de catálogo, inventario, ventas y reportes | Spring Boot 4 · Java 21 · PostgreSQL · MinIO | [README](backend/pos_transactions/README.md) · [CLAUDE.md](backend/pos_transactions/CLAUDE.md) |
 | [`apps/galfield-pos`](apps/galfield-pos) | Terminal de punto de venta de escritorio | Tauri 2 · Vue 3 · TypeScript | [README](apps/galfield-pos/README.md) · [CLAUDE.md](apps/galfield-pos/CLAUDE.md) |
 | [`apps/galfields-mobile`](apps/galfields-mobile) | App móvil — catálogo, inventario y reportes | Expo 54 · React Native | [README](apps/galfields-mobile/README.md) · [CLAUDE.md](apps/galfields-mobile/CLAUDE.md) |
 
@@ -15,7 +15,7 @@ Sistema de punto de venta para Galfields: catálogo, inventario, ventas y report
 ```mermaid
 flowchart LR
     Mobile["📱 galfields-mobile\ncatálogo · inventario · reportes"]
-    Backend["☁️ backend/pos\nAPI · PostgreSQL · MinIO"]
+    Backend["☁️ backend/pos_transactions\nAPI · PostgreSQL · MinIO"]
     POS["🖥️ galfield-pos\nterminal de venta"]
 
     Mobile <-->|"REST / multipart"| Backend
@@ -23,7 +23,7 @@ flowchart LR
     POS -->|"reporta ventas\nPOST /api/sales"| Backend
 ```
 
-- **`backend/pos`** es la única fuente de verdad: ahí viven el catálogo, el inventario y el historial real de ventas.
+- **`backend/pos_transactions`** es la única fuente de verdad: ahí viven el catálogo, el inventario y el historial real de ventas.
 - **`apps/galfields-mobile`** administra ese catálogo directamente y consulta reportes/inventario en vivo contra la API.
 - **`apps/galfield-pos`** trabaja offline-first con una base SQLite local: sincroniza el catálogo bajo demanda, vende localmente aunque no haya internet, y reporta cada venta de vuelta a la nube en segundo plano apenas hay conexión.
 
@@ -33,7 +33,7 @@ Tanto el POS de escritorio como la app móvil apuntan a la URL del backend de fo
 
 Cada componente tiene su propio README con instrucciones de instalación y ejecución:
 
-- [`backend/pos/README.md`](backend/pos/README.md)
+- [`backend/pos_transactions/README.md`](backend/pos_transactions/README.md)
 - [`apps/galfield-pos/README.md`](apps/galfield-pos/README.md)
 - [`apps/galfields-mobile/README.md`](apps/galfields-mobile/README.md)
 

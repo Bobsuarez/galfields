@@ -1,0 +1,8 @@
+dependencies {
+    implementation project(':model')
+
+    implementation 'io.minio:minio:8.5.17'
+    implementation 'net.coobird:thumbnailator:0.4.20'
+    implementation 'org.sejda.imageio:webp-imageio:0.1.6'
+    implementation 'org.springframework.boot:spring-boot-starter'
+}

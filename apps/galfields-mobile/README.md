@@ -1,6 +1,6 @@
 # galfields-mobile
 
-App móvil de gestión — Expo 54 / React Native, con `expo-router` (file-based routing) y New Architecture habilitada. Administra catálogo, inventario y reportes directamente contra [`backend/pos`](../../backend/pos); a diferencia del POS de escritorio, no trabaja offline — cada pantalla lee/escribe en vivo contra la API.
+App móvil de gestión — Expo 54 / React Native, con `expo-router` (file-based routing) y New Architecture habilitada. Administra catálogo, inventario y reportes directamente contra [`backend/pos_transactions`](../../backend/pos_transactions); a diferencia del POS de escritorio, no trabaja offline — cada pantalla lee/escribe en vivo contra la API.
 
 ## Stack
 
@@ -20,7 +20,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Edita `.env.local` y define `EXPO_PUBLIC_API_BASE_URL` con la URL de tu `backend/pos`. En un dispositivo físico con Expo Go, `localhost` no resuelve a tu máquina de desarrollo — usa la IP LAN (ej. `http://192.168.1.50:8080`). Esta variable es solo el valor inicial: la URL real es configurable en runtime desde **Configuración → Servidor** dentro de la app, sin necesidad de una build nueva.
+Edita `.env.local` y define `EXPO_PUBLIC_API_BASE_URL` con la URL de tu `backend/pos_transactions`. En un dispositivo físico con Expo Go, `localhost` no resuelve a tu máquina de desarrollo — usa la IP LAN (ej. `http://192.168.1.50:8080`). Esta variable es solo el valor inicial: la URL real es configurable en runtime desde **Configuración → Servidor** dentro de la app, sin necesidad de una build nueva.
 
 También necesitas `EXPO_PUBLIC_GOOGLE_CSE_API_KEY` (API key de la Custom Search JSON API en Google Cloud Console) para la búsqueda de imágenes de producto. Alternativamente, `EXPO_PUBLIC_SERPAPI_API_KEY` (key de [serpapi.com](https://serpapi.com)) sirve para el mismo propósito — elige cuál usar desde **Configuración → Búsqueda de imágenes** dentro de la app.
 
