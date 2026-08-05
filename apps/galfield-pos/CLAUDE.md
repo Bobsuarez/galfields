@@ -158,6 +158,12 @@ chrome. Props are always `visible: boolean`; emits are always `confirm`/`cancel`
 
 Recommended extensions are in `.vscode/extensions.json`: Vue - Official (Volar), Tauri, and rust-analyzer.
 
+## CI (GitHub Actions)
+
+`.github/workflows/build-galfield-pos-desktop.yml` builds installers across a 4-way matrix: `windows-latest`, `macos-latest`, `ubuntu-22.04`, `ubuntu-24.04` (see that file's comments for why Ubuntu is split into two versions instead of one `ubuntu-latest`).
+
+**Gotcha — intermittent `error[E0463]: can't find crate for `tauri`` (or any other real dependency) failing only in CI, never locally:** the `swatinem/rust-cache@v2` step must set an explicit `key: ${{ matrix.platform }}`. Without it, the action's default cache key is based on `runner.os`, which is `"Linux"` for **both** `ubuntu-22.04` and `ubuntu-24.04` — those two matrix legs then share (and race on, since they run in parallel) the exact same cache. One job's `target/` gets corrupted mid-build by the other job restoring/saving over it concurrently, producing a spurious "can't find crate" for a dependency that's perfectly declared in `Cargo.toml`/`Cargo.lock` — confirmed by `Cargo.toml` being fine and `cargo check` succeeding locally with the same lockfile. If this resurfaces, suspect the cache key first, not the Rust code.
+
 # Principios que debes aplicar obligatoriamente
 - SOLID: cada componente tiene una sola responsabilidad
 - DRY: cero lógica duplicada, extraer composables para lógica reutilizable

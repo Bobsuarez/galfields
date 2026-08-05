@@ -86,6 +86,14 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/galfield-pos/src-tauri -> target
+          # Sin esto, rust-cache arma su key en base a runner.os — que es
+          # "Linux" tanto para ubuntu-22.04 como ubuntu-24.04. Los dos legs
+          # terminan compartiendo (y corriendo en paralelo sobre) la misma
+          # cache, corrompiendo el target/ del otro a mitad de compilación:
+          # eso produce errores intermitentes tipo "can't find crate for
+          # `tauri`" en CI que no reproducen en local, con Cargo.toml/lock
+          # perfectamente sanos.
+          key: ${{ matrix.platform }}
 
       - name: Install frontend dependencies
         run: npm ci
