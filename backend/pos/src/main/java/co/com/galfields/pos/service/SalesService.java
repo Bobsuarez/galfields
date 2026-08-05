@@ -25,6 +25,7 @@ import co.com.galfields.pos.repository.SaleItemRepository;
 import co.com.galfields.pos.repository.SalesTransactionRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -83,6 +84,13 @@ public class SalesService {
         transaction.setPaymentStatus(PaymentStatus.Paid);
         transaction.setInvoicePrefix(request.invoicePrefix());
         transaction.setInvoiceNumber(request.invoiceNumber());
+        // The terminal's own sale timestamp wins when present (see
+        // SaleRequest); a terminal that hasn't updated yet omits it, so this
+        // falls back to the moment the cloud received the report - the only
+        // behavior that existed before this field.
+        transaction.setTransactionDate(request.transactionDate() != null
+                ? request.transactionDate().withOffsetSameInstant(ZoneOffset.UTC).toLocalDateTime()
+                : LocalDateTime.now(ZoneOffset.UTC));
         salesTransactionRepository.save(transaction);
 
         for (SaleLineRequest line : request.items()) {

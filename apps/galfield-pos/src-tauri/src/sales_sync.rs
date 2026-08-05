@@ -42,6 +42,12 @@ struct SaleRequestPayload {
     // never got backfilled — backend/pos's SaleRequest accepts null here.
     invoice_prefix: Option<String>,
     invoice_number: Option<String>,
+    // The actual moment the sale happened, ISO-8601 with an explicit
+    // "-05:00" offset (Colombia has no DST, a fixed offset is always
+    // correct) — see specs/01-reportes-mobile-pos-zona-horaria.md. Lets the
+    // cloud report the sale under its real Bogotá day instead of the day it
+    // happened to sync.
+    transaction_date: String,
 }
 
 /// Mirrors `sales-sync-status` payload shape sent to the frontend after
@@ -74,6 +80,9 @@ struct PendingSale {
     remote_payment_method_id: Option<i64>,
     invoice_prefix: Option<String>,
     invoice_number: Option<String>,
+    /// `"YYYY-MM-DD HH:MM:SS"`, the device's local (Bogotá) wall-clock time
+    /// — see `db::run_migrations`'s `datetime('now', 'localtime')` default.
+    created_at: String,
     items: Vec<PendingSaleItem>,
 }
 
@@ -100,7 +109,7 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
         .conn
         .prepare(
             "SELECT s.id, s.sync_uuid, s.discount, s.total, pm.remote_payment_method_id,
-                    s.invoice_prefix, s.invoice_number
+                    s.invoice_prefix, s.invoice_number, s.created_at
              FROM sales s
              JOIN payment_method pm ON pm.id = s.payment_method
              WHERE s.synced_at IS NULL AND s.cancelled_at IS NULL
@@ -108,7 +117,7 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
         )
         .map_err(|e| e.to_string())?;
 
-    let sale_rows: Vec<(i64, String, f64, f64, Option<i64>, Option<String>, Option<String>)> = sales_stmt
+    let sale_rows: Vec<(i64, String, f64, f64, Option<i64>, Option<String>, Option<String>, String)> = sales_stmt
         .query_map([], |row| {
             Ok((
                 row.get(0)?,
@@ -118,6 +127,7 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
                 row.get(4)?,
                 row.get(5)?,
                 row.get(6)?,
+                row.get(7)?,
             ))
         })
         .map_err(|e| e.to_string())?
@@ -135,7 +145,7 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
         .map_err(|e| e.to_string())?;
 
     let mut pending = Vec::new();
-    for (sale_id, sync_uuid, discount, total, remote_payment_method_id, invoice_prefix, invoice_number) in sale_rows {
+    for (sale_id, sync_uuid, discount, total, remote_payment_method_id, invoice_prefix, invoice_number, created_at) in sale_rows {
         let items: Vec<PendingSaleItem> = items_stmt
             .query_map(rusqlite::params![sale_id], |row| {
                 Ok(PendingSaleItem {
@@ -156,6 +166,7 @@ fn load_pending_sales(state: &State<'_, AppState>) -> Result<Vec<PendingSale>, S
             remote_payment_method_id,
             invoice_prefix,
             invoice_number,
+            created_at,
             items,
         });
     }
@@ -242,6 +253,7 @@ pub async fn push_pending_sales(app: AppHandle, state: State<'_, AppState>) -> R
             total_amount: sale.total,
             invoice_prefix: sale.invoice_prefix.clone(),
             invoice_number: sale.invoice_number.clone(),
+            transaction_date: format!("{}-05:00", sale.created_at.replace(' ', "T")),
         };
 
         let response = http_client::post_json(&format!("{}/api/sales", api_base_url), &payload).await;
