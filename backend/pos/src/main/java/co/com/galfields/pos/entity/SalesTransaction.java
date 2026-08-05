@@ -15,7 +15,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -30,7 +29,15 @@ public class SalesTransaction {
     @Column(name = "transaction_id")
     private Long transactionId;
 
-    @CreationTimestamp
+    /**
+     * The actual moment the sale happened (UTC) - set explicitly by
+     * SalesService.recordSale from the reporting terminal's transactionDate
+     * when present, or the moment the cloud received the report otherwise.
+     * Deliberately NOT {@code @CreationTimestamp} - that annotation always
+     * overwrites whatever value is set at persist time, which would make it
+     * impossible to honor the terminal's own timestamp. See
+     * specs/01-reportes-mobile-pos-zona-horaria.md.
+     */
     @Column(name = "transaction_date", nullable = false, updatable = false)
     private LocalDateTime transactionDate;
 

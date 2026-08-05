@@ -9,6 +9,8 @@ import co.com.galfields.pos.service.ReportService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -25,7 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Read-only report endpoints backing the mobile app's report screens (see
  * apps/galfields-mobile's CLAUDE.md). {@code from}/{@code to} are plain
- * dates (inclusive) — omitting both defaults to "today"; omitting just
+ * dates (inclusive), always interpreted as America/Bogota calendar days
+ * (see {@link #startOf}/{@link #endOf}) regardless of the server's own
+ * runtime zone — omitting both defaults to "today" in Bogotá; omitting just
  * {@code from} scopes to the single {@code to} day. See ReportService for
  * which report covers which table, and for the "cierre de caja = same
  * aggregate as ventas por método de pago, scoped to one day" design note.
@@ -36,6 +40,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService reportService;
+
+    /**
+     * The business only operates in Colombia today, so report "days" are
+     * always Bogotá calendar days regardless of the server's own runtime
+     * zone (this pod runs UTC) — see specs/01-reportes-mobile-pos-zona-horaria.md.
+     */
+    private static final ZoneId BOGOTA_ZONE = ZoneId.of("America/Bogota");
 
     @GetMapping("/sales-summary")
     public SalesSummaryResponse salesSummary(
@@ -77,14 +88,23 @@ public class ReportController {
         return new PagedModel<>(reportService.lowStock(threshold, pageable));
     }
 
-    private LocalDateTime startOf(LocalDate from, LocalDate to) {
-        LocalDate effectiveTo = to != null ? to : LocalDate.now();
+    /**
+     * Converts the Bogotá calendar-day boundary for {@code from} (or
+     * {@code to} when {@code from} is omitted) into the equivalent UTC
+     * instant, expressed as a naive {@code LocalDateTime} to compare against
+     * {@code transaction_date} (a {@code timestamp without time zone} column
+     * that always holds a true UTC instant — see SalesTransaction).
+     */
+    // Package-private (not private) so ReportControllerTest can exercise the
+    // boundary math directly without standing up a full MVC/Spring context.
+    LocalDateTime startOf(LocalDate from, LocalDate to) {
+        LocalDate effectiveTo = to != null ? to : LocalDate.now(BOGOTA_ZONE);
         LocalDate effectiveFrom = from != null ? from : effectiveTo;
-        return effectiveFrom.atStartOfDay();
+        return effectiveFrom.atStartOfDay(BOGOTA_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
-    private LocalDateTime endOf(LocalDate to) {
-        LocalDate effectiveTo = to != null ? to : LocalDate.now();
-        return effectiveTo.atTime(LocalTime.MAX);
+    LocalDateTime endOf(LocalDate to) {
+        LocalDate effectiveTo = to != null ? to : LocalDate.now(BOGOTA_ZONE);
+        return effectiveTo.atTime(LocalTime.MAX).atZone(BOGOTA_ZONE).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 }

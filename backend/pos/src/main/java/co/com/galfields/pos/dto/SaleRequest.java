@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 /**
@@ -27,5 +28,14 @@ public record SaleRequest(
         // updated yet (or has no numbering range configured) still has to
         // be able to report a sale; those land with null invoice fields.
         String invoicePrefix,
-        String invoiceNumber) {
+        String invoiceNumber,
+        // The actual wall-clock moment the sale happened, snapshotted by the
+        // terminal (apps/galfield-pos's sales_sync.rs) from its local
+        // sales.created_at, with an explicit offset so it's unambiguous
+        // regardless of the terminal's own clock config. Nullable: a
+        // terminal that hasn't updated yet omits it, and SalesService falls
+        // back to the moment the cloud received the report (the only
+        // behavior that existed before this field) - see
+        // specs/01-reportes-mobile-pos-zona-horaria.md.
+        OffsetDateTime transactionDate) {
 }
